@@ -1,0 +1,25 @@
+
+BlockModel {
+    elements: [
+        Element {
+            origin: [0, 0, 0],
+            extent: [16, 16, 16],
+            textures: {
+                top: "$top",
+                bottom: "$bottom",
+                east: "$front",
+                west: "$back",
+                north: "$right",
+                south: "$left",
+            }
+        }
+    ],
+    transforms: {
+        face_east: "noop",
+        face_west: "rotate(180, 0, 0)",
+        face_north: "rotate(0, 0, -90)",
+        face_south: "rotate(0, 0, 90)",
+        face_up: "rotate(0, 90, 0)",
+        face_down: "rotate(0, -90, 0)",
+    }
+}

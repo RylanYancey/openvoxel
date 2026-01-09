@@ -1,0 +1,11 @@
+[package]
+name = "zip"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+bytes.workspace = true
+thiserror.workspace = true
+bytemuck.workspace = true
+zstd = "0.13.3"
+lz4_flex = "0.12.0"

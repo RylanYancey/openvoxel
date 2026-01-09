@@ -1,0 +1,10 @@
+
+BlockModelTemplate {
+    variants: {
+        base: Variant {
+            origin: [0, 0, 0],
+            extent: [16, 16, 16],
+
+        }
+    }
+}

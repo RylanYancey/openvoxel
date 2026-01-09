@@ -1,0 +1,5 @@
+
+BlockDescriptor {
+    template: "slab",
+    textures: "maple_planks",
+}

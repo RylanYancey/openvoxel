@@ -1,0 +1,58 @@
+[package]
+name = "client"
+version = "0.1.0"
+edition = "2024"
+
+[features]
+default = ["greedy_ipnsort_in_place"]
+greedy_ipnsort_in_place = []
+
+[dependencies]
+# Common imports
+data.path = "../common/data"
+protocol.path = "../common/protocol"
+math.path = "../common/math"
+
+# Workspace imports
+fxhash.workspace = true
+thiserror.workspace = true
+serde.workspace = true
+parking_lot.workspace = true
+crossbeam-channel.workspace = true
+serde_json.workspace = true
+bytemuck.workspace = true
+portable-atomic.workspace = true
+
+# local imports
+image = "0.25.9"
+
+[dependencies.world]
+path = "../common/world"
+features = ["colored_lights"]
+
+[dependencies.bevy]
+workspace = true
+default-features = false
+features = [
+    "tonemapping_luts",
+    "bevy_audio",
+    "bevy_camera",
+    "bevy_color",
+    "bevy_core_pipeline",
+    "bevy_mesh",
+    "bevy_picking",
+    "bevy_render",
+    "bevy_pbr",
+    "bevy_shader",
+    "bevy_state",
+    "bevy_text",
+    "bevy_ui",
+    "bevy_ui_picking_backend",
+    "default_font",
+    "bevy_ui_render",
+    "bevy_window",
+    "bevy_winit",
+    "wayland",
+    "x11",
+    "png",
+]

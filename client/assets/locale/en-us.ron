@@ -1,0 +1,15 @@
+{
+    "ui.common.world-select": "Singleplayer",
+    "ui.common.server-select": "Multiplayer",
+    "ui.common.options": "Options",
+    "ui.common.quit": "Quit",
+    "ui.common.cancel": "Cancel",
+    "ui.title.version": "Version",
+    "ui.title.open-voxel": "Open Voxel",
+    "ui.title.copyright-notice": "Copyright (infringement) @RylanYancey 2025",
+    "ui.connecting": "Connecting To Server...",
+    "seq.hint.resolving-ip-addr": "Resolving IP Address...",
+    "seq.hint.establishing": "Establishing Connection...",
+    "seq.hint.authenticating": "Authenticating...",
+    "seq.hint.syncing": "Synchronizing Registries...",
+}

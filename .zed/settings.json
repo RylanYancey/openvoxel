@@ -1,0 +1,10 @@
+{
+  "file_types": {
+    "RON": [".meta"],
+  },
+  "languages": {
+    "WGSL/WESL": {
+      "enable_language_server": false,
+    },
+  },
+}

@@ -1,0 +1,169 @@
+
+BlockModelTemplate(
+    waterlog: true,
+    variants: {
+        "half": Variant(
+            order: 0,
+            values: ["bottom", "top"],
+            transform: {
+                "top": {
+                    mirror: "y",
+                    enable_tags: ["#top-stair"],
+                },
+                "bottom": {
+                    enable_tags: ["#bottom-stair"],
+                }
+            }
+        ),
+        "dir": Variant(
+            order: 1,
+            values: ["east", "west", "north", "south"],
+            transform: {
+                "west": { rotate: [0, 180, 0] },
+                "north": { rotate: [0, 90, 0] },
+                "south": { rotate: [0, 270, 0] }
+            }
+        )
+    },
+    connectivity: Connectivity(
+        // Stairs can only connect to 1 other stair at a time.
+        exclusive: true,
+        rules: {
+            // 3/4 full, empty on front-top-right quadrant.
+            inner_left: ConnectivityRule(
+                priority: 1,
+                axes: ["east"],
+                tags: ["#stair-right"],
+                attach: ["straight", "inner_left"]
+            ),
+            // 3/4 full, empty on front-top-left quadrant.
+            inner_right: ConnectivityRule(
+                priority: 2,
+                axes: ["east"],
+                tags: ["#stair-left"],
+                attach: ["straight", "inner_right"]
+            ),
+            // 3/4 empty, full on back-top-left quadrant.
+            outer_left: ConnectivityRule(
+                priority: 3,
+                axes: ["west"],
+                tags: ["#stair-left"],
+                attach: ["outer_left"]
+            ),
+            // 3/4 empty, full on back-top-right quadrant.
+            outer_right: ConnectivityRule(
+                priority: 4,
+                axes: ["west"],
+                tags: ["#stair-right"]
+                attach: ["outer_right"],
+            ),
+            // no connectivity.
+            straight: ConnectivityRule(
+                priority: 5,
+                attach: ["straight"],
+            )
+        }
+    ),
+    submodels: {
+        // two quadrants full in top half of block
+        straight: SubModel(
+            elements: [
+                // slab base
+                Cube(
+                    from: [0, 0, 0],
+                    to: [16, 8, 16],
+                    faces: {
+                        east: "$front",
+                        west: "$back",
+                        up: "$top",
+                        down: "$bottom",
+                        north: "$side-left",
+                        south: "$side-right",
+                    }
+                ),
+                // Top half of block is half full.
+                Cube(
+                    from: [0, 8, 0],
+                    to: [8, 16, 16],
+                    faces: {
+                        east: "$front",
+                        west: "$back",
+                        up: "$top",
+                        north: "$side-left",
+                        south: "$side-right",
+                    }
+                ),
+            ]
+        ),
+        // 3 quadrants full in top half of block.
+        inner: SubModel(
+            elements: [
+                // slab base
+                Cube(
+                    from: [0, 0, 0],
+                    to: [16, 8, 16],
+                    faces: {
+                        east: "$front",
+                        west: "$back",
+                        up: "$top",
+                        down: "$bottom",
+                        north: "$side-left",
+                        south: "$side-right",
+                    }
+                ),
+                // top-back half
+                Cube(
+                    from: [0, 8, 0],
+                    to: [8, 16, 16],
+                    faces: {
+                        east: "$front",
+                        west: "$back",
+                        up: "$top",
+                        north: "$side-left",
+                        south: "$side-right",
+                    }
+                ),
+                // top-front-left quarter
+                Cube(
+                    from: [8, 8, 0],
+                    to: [16, 16, 8],
+                    faces: {
+                        east: "$front",
+                        west: "$back",
+                        up: "$top",
+                        north: "$side-left",
+                        south: "$side-right",
+                    }
+                ),
+            ]
+        ),
+        // 1 quadrant full in top half of block.
+        outer: SubModel(
+            // slab base
+            Cube(
+                from: [0, 0, 0],
+                to: [16, 8, 16],
+                faces: {
+                    east: "$front",
+                    west: "$back",
+                    up: "$top",
+                    down: "$bottom",
+                    north: "$side-left",
+                    south: "$side-right",
+                }
+            ),
+            // top-back-left quarter
+            Cube(
+                from: [0, 8, 0],
+                to: [8, 16, 8],
+                faces: {
+                    east: "$front",
+                    west: "$back",
+                    up: "$top",
+                    north: "$side-left",
+                    south: "$side-right",
+                }
+            ),
+        )
+    }
+)

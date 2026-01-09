@@ -1,0 +1,17 @@
+
+BlockModel(
+    elements: {
+        base: Cube(
+            origin: [0, 0, 0],
+            extent: [16, 8, 16],
+            faces: {
+                east: "$side",
+                west: "$side",
+                up: "$top",
+                down: "$bottom",
+                north: "$side",
+                south: "$side",
+            }
+        ),
+    }
+)

@@ -1,0 +1,7 @@
+
+BlockTemplate {
+    variants: {
+        half: ["top", "bottom"],
+    },
+
+}

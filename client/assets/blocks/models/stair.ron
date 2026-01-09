@@ -1,0 +1,44 @@
+
+BlockModel(
+    elements: {
+        // slab base
+        base: Cube(
+            origin: [0, 0, 0],
+            extent: [16, 8, 16],
+            faces: {
+                east: "$side",
+                west: "$side",
+                up: "$top",
+                down: "$bottom",
+                north: "$side",
+                south: "$side",
+            }
+        ),
+        // 2-quadrant step.
+        step2: Cube(
+            origin: [0, 8, 0],
+            extent: [8, 16, 16],
+            faces: {
+                east: "$side",
+                west: "$side",
+                up: "$top",
+                down: "$bottom",
+                north: "$side",
+                south: "$side",
+            }
+        ),
+        // 1-quadrant step
+        step1: Cube(
+            origin: [0, 8, 8],
+            extent: [8, 16, 16]
+            faces: {
+                east: "$side",
+                west: "$side",
+                up: "$top",
+                down: "$bottom",
+                north: "$side",
+                south: "$side",
+            }
+        ),
+    },
+)

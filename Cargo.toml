@@ -1,0 +1,48 @@
+
+[package]
+name = "openvoxel"
+version = "0.1.0"
+edition = "2024"
+
+[profile.dev.package."*"]
+opt-level = 3
+
+[workspace]
+resolver = "3"
+members = [
+    "client",
+    "server",
+    "common/data",
+    "common/math",
+    "common/protocol",
+    "common/world",
+    "common/zip"
+]
+
+[workspace.dependencies]
+crossbeam-channel = "0.5.15"
+serde_json = "1.0.146"
+fxhash = "0.2.1"
+serde = { version = "1.0.228", features = ["derive"] }
+ciborium = "0.2.2"
+toml = "0.9.8"
+thiserror = "2.0.17"
+bytemuck = { version = "1.24.0", features = ["derive"] }
+getrandom = "0.3.4"
+parking_lot = "0.12.5"
+bytes = "1.11.0"
+bitvec = "1.0.1"
+portable-atomic = { version = "1.13.0", features = ["float"] }
+bitflags = "2.10.0"
+
+[workspace.dependencies.bevy]
+version = "0.17.3"
+default-features = false
+features = [
+    "bevy_asset",
+    "bevy_log",
+    "bevy_state",
+    "debug",
+    "std",
+    "zstd_rust",
+]

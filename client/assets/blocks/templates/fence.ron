@@ -1,0 +1,13 @@
+
+BlockModelTemplate {
+    variants: {
+        single: Variant {
+            connectivity: {
+                accept_axes: ["+x", "-x", "+z", "-z"],
+                accept_tags: ["#fence-connectable"],
+                search_axes: ["+x", "-x", "+z", "-z"],
+                search_tags: ["#full-block-opaque", "#fence-connectable"],
+            }
+        }
+    },
+}

@@ -70,8 +70,8 @@ impl World {
     /// This will invalidate any borrowed region maps.
     /// Panics if the region already exists.
     pub fn insert(&mut self, region: Box<Region>) {
-        assert_eq!(region.origin().x & !511, 0);
-        assert_eq!(region.origin().z & !511, 0);
+        assert_eq!(region.origin().x & 511, 0);
+        assert_eq!(region.origin().z & 511, 0);
         assert_eq!(region.origin().y, self.min_y);
         assert_eq!(region.limit().y, self.max_y);
         assert!(!self.has_region(region.id()));

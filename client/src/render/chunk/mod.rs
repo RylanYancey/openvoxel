@@ -93,12 +93,11 @@ pub fn render_chunks(
     mut materials: ResMut<Assets<ChunkMaterial>>,
     world: Res<World>,
 ) {
-    let stone_texture = atlas.resolve("atlases/blocks/stone.png").unwrap() as i16;
+    let stone_texture = atlas.resolve("textures/blocks/stone.png").unwrap() as i16;
 
     for task in tasks.take(renderer.chunks_per_tick) {
         renderer.combiner.clear_all();
         let origin = ivec3(task.origin.x, world.min_y(), task.origin.y);
-        info!("Starting chunk render task for origin: {origin:?}");
         let is_contained = chunk_is_fully_contained(origin.xz());
         if let Some(region) = world.get_region(origin.xz()) {
             for y in (origin.y..world.max_y()).step_by(32) {

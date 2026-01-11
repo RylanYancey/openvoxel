@@ -54,6 +54,7 @@ const ACTIVITY_FALL_ALPHA: f32 = -0.1;
 pub struct Subscriber {
     draw_distance: u32,
     sim_distance: u32,
+    sends_per_tick_limit: u32,
     trackers: SessionMap<Tracker>,
     buckets: FxHashMap<RegionId, Bucket>,
     changes: Vec<SubscChanged>,
@@ -128,11 +129,7 @@ impl Subscriber {
     /// Removed players do not trigger any events.
     fn remove_if_not_exists(&mut self) -> bool {
         self.trackers
-            .extract_if(|_, tracker| {
-                let yes = tracker.exists;
-                tracker.exists = false;
-                yes
-            })
+            .extract_if(|_, tracker| !std::mem::replace(&mut tracker.exists, false))
             .count()
             == 0
     }
@@ -267,6 +264,7 @@ impl Default for Subscriber {
         Self {
             draw_distance: 256,
             sim_distance: 128,
+            sends_per_tick_limit: 5,
             trackers: SessionMap::new(),
             buckets: FxHashMap::default(),
             changes: Vec::new(),
@@ -304,11 +302,13 @@ pub fn recompute_subscriptions(
     let mut needs_recompute = false;
     for (pos, player) in &q {
         if let Some(tracker) = subscriber.trackers.get_mut(player.session) {
+            tracker.exists = true;
             if tracker.needs_recompute(pos.translation.as_ivec3().xz()) {
                 needs_recompute = true;
-                tracker.exists = true;
             }
         } else {
+            info!("Inserting Subscription Tracker: {:?}", player.session);
+
             // insert a new tracker if it does not exist.
             subscriber.trackers.insert(
                 player.session,
@@ -354,69 +354,78 @@ pub fn process_chunk_send_queues(
     mut world: ResMut<World>,
 ) {
     let channel: ChannelId = channels.resolve("chunk-data").unwrap().into();
+    let sends_limit = subscriber.sends_per_tick_limit;
 
     for (session, tracker) in subscriber.trackers.iter_mut() {
-        if let Some((id, distance)) = tracker.peek_next_chunk() {
-            let origin = id.as_ivec2();
-            let mut needs_load = false;
-            if let Some(chunk) = world.get_chunk_mut(origin) {
-                match chunk.load_state() {
-                    // Region is loaded, but chunk is not. Load it.
-                    ChunkState::Unloaded => needs_load = true,
+        let mut sends = 0;
+        loop {
+            if let Some((id, distance)) = tracker.peek_next_chunk() {
+                let origin = id.as_ivec2();
+                let mut needs_load = false;
+                if let Some(chunk) = world.get_chunk_mut(origin) {
+                    match chunk.load_state() {
+                        // Region is loaded, but chunk is not. Load it.
+                        ChunkState::Unloaded => needs_load = true,
 
-                    // Chunk is in the process of being generated.
-                    ChunkState::Generating => {
-                        // Push this chunk up in the queue.
-                        generator.enqueue(id, distance);
+                        // Chunk is in the process of being generated.
+                        ChunkState::Generating => {
+                            // Push this chunk up in the queue.
+                            generator.enqueue(id, distance);
+                        }
+
+                        // Chunk is loaded and ready to be sent.
+                        ChunkState::Loaded => {
+                            // zip the data if needed and send to client.
+                            server.tcp_send(Packet {
+                                payload: chunk
+                                    .get_cached_or_zip(loader.algorithm(), loader.zip_level())
+                                    .0,
+                                session,
+                                channel,
+                            });
+
+                            // send successful, pop off the tracker.
+                            tracker.pop_next_chunk();
+                        }
                     }
+                } else {
+                    // request region load.
+                    loader.open_region(id, distance);
+                }
 
-                    // Chunk is loaded and ready to be sent.
-                    ChunkState::Loaded => {
-                        // zip the data if needed and send to client.
-                        server.tcp_send(Packet {
-                            payload: chunk
-                                .get_cached_or_zip(loader.algorithm(), loader.zip_level())
-                                .0,
-                            session,
-                            channel,
-                        });
-
-                        // send successful, pop off the tracker.
-                        tracker.pop_next_chunk();
+                if needs_load {
+                    match loader.read_chunk(id) {
+                        Ok(data) => {
+                            let span = UnzippedChunk::unzip(&data.0).expect("[S555] Unzip fail.");
+                            world
+                                .read_unzipped_chunk(span, false)
+                                .expect("[S556] Chunk load fail.");
+                            world
+                                .get_chunk_mut(origin)
+                                .unwrap()
+                                .set_cached_zip(data.clone());
+                            server.tcp_send(Packet {
+                                payload: data.0,
+                                session,
+                                channel,
+                            });
+                            tracker.pop_next_chunk();
+                        }
+                        Err(ChunkReadError::NoData) => {
+                            let chunk = world.get_chunk_mut(origin).unwrap();
+                            *chunk.load_state_mut() = ChunkState::Generating;
+                            generator.enqueue(id, distance);
+                        }
+                        Err(ChunkReadError::RegionNotLoaded) => {
+                            todo!("handle this")
+                        }
                     }
                 }
-            } else {
-                // request region load.
-                loader.open_region(id, distance);
             }
 
-            if needs_load {
-                match loader.read_chunk(id) {
-                    Ok(data) => {
-                        let span = UnzippedChunk::unzip(&data.0).expect("[S555] Unzip fail.");
-                        world
-                            .read_unzipped_chunk(span, false)
-                            .expect("[S556] Chunk load fail.");
-                        world
-                            .get_chunk_mut(origin)
-                            .unwrap()
-                            .set_cached_zip(data.clone());
-                        server.tcp_send(Packet {
-                            payload: data.0,
-                            session,
-                            channel,
-                        });
-                        tracker.pop_next_chunk();
-                    }
-                    Err(ChunkReadError::NoData) => {
-                        let chunk = world.get_chunk_mut(origin).unwrap();
-                        *chunk.load_state_mut() = ChunkState::Generating;
-                        generator.enqueue(id, distance);
-                    }
-                    Err(ChunkReadError::RegionNotLoaded) => {
-                        todo!("handle")
-                    }
-                }
+            sends += 1;
+            if sends >= sends_limit {
+                break;
             }
         }
     }
@@ -471,7 +480,7 @@ impl Tracker {
     }
 
     pub fn pop_next_chunk(&mut self) -> Option<(ChunkId, u32)> {
-        if let Some(queued) = self.send_queue.last().copied() {
+        if let Some(queued) = self.send_queue.pop() {
             let chunk_origin = self.prev_pos + queued.rel;
             let id = ChunkId::new(chunk_origin);
             if let Some(i) = self.get_region_idx(id.to_region_id()) {

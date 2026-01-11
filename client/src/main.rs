@@ -207,6 +207,5 @@ fn recv_chunk_data(
         let unzip = UnzippedChunk::unzip(&packet.payload).unwrap();
         let success = world.read_unzipped_chunk(unzip, true).unwrap();
         queue.add(success.origin.xz());
-        info!("Received chunk from server with origin: {}", success.origin);
     }
 }

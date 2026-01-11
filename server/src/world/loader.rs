@@ -181,6 +181,7 @@ impl WorldLoader {
                 LoadTask::Running(task) => match futures_lite::future::block_on(task) {
                     Err(e) => panic!("[S777] Failed to load region: '{e:?}'"),
                     Ok(file) => {
+                        info!("FINISHED LOADING REGION: {}", id.as_ivec2());
                         let header = file.header();
                         let region = Box::new(Region::new(header.origin, header.height as i32));
                         evs.write(RegionLoaded(id));
@@ -196,6 +197,7 @@ impl WorldLoader {
         if let Some((id, _)) = max_prio {
             let task_pool = IoTaskPool::get();
             if let Some(task) = self.queue.get_mut(&id) {
+                info!("STARTED LOADING REGION: {}", id.as_ivec2());
                 *task = LoadTask::Running(task_pool.spawn(RegionFile::load_async(
                     self.region_dir.clone(),
                     id.as_ivec3(world.min_y()),
@@ -209,7 +211,7 @@ impl WorldLoader {
 impl Default for WorldLoader {
     fn default() -> Self {
         Self {
-            region_dir: Arc::new(PathBuf::from("~/documents/test-save-data")),
+            region_dir: Arc::new(PathBuf::from("/home/wade/Documents/test-save-data/")),
             chunk_size_limit: 1_000_000,
             algorithm: Algorithm::Zstd,
             zip_level: ZipLevel::default(),

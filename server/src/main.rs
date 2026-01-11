@@ -21,7 +21,7 @@ use data::{queue::Queue, registry::Registry};
 use protocol::{Packet, packet::SentBy};
 
 use crate::{
-    events::{PlayerJoined, PlayerLeft, SubscChanged},
+    events::{PlayerJoined, PlayerLeft, RegionLoaded, SubscChanged},
     net::{InitialMessageContent, Server, channel::Channel},
 };
 
@@ -53,6 +53,7 @@ fn main() -> AppExit {
             TerminalCtrlCHandlerPlugin,
             AssetPlugin::default(),
             StatesPlugin,
+            world::ServerWorldPlugin,
             #[cfg(feature = "tui")]
             tui::TuiPlugin,
         ))
@@ -66,13 +67,14 @@ fn main() -> AppExit {
         .add_message::<PlayerJoined>()
         .add_message::<PlayerLeft>()
         .add_message::<SubscChanged>()
+        .add_message::<RegionLoaded>()
         // add channels
         .add_channel("player-input", SentBy::Client)
         .add_channel("chunk-data", SentBy::Server)
         // add startup systems
         .add_systems(Startup, (
             startup::bind_server_to_localhost,
-            startup::build_world,
+            // startup::build_world,
         ))
         // add pre-update systems
         .add_systems(PreUpdate, (
@@ -81,7 +83,7 @@ fn main() -> AppExit {
         ))
         // add update systems
         .add_systems(Update, (
-            send_chunk_data_to_player_on_join,
+            // send_chunk_data_to_player_on_join,
             player::apply_player_input,
             player::spawn_player_on_join,
             player::despawn_player_on_leave,
@@ -131,27 +133,27 @@ impl AppExt for App {
     }
 }
 
-fn send_chunk_data_to_player_on_join(
-    mut evs: MessageReader<PlayerJoined>,
-    world: Res<World>,
-    channels: Res<Registry<Channel>>,
-    mut server: ResMut<Server>,
-) {
-    const TEST_CHUNK_COORDS: IVec2 = IVec2::new(32, 32);
-    let channel = channels.resolve("chunk-data").unwrap().into();
+// fn send_chunk_data_to_player_on_join(
+//     mut evs: MessageReader<PlayerJoined>,
+//     world: Res<World>,
+//     channels: Res<Registry<Channel>>,
+//     mut server: ResMut<Server>,
+// ) {
+//     const TEST_CHUNK_COORDS: IVec2 = IVec2::new(32, 32);
+//     let channel = channels.resolve("chunk-data").unwrap().into();
 
-    for ev in evs.read() {
-        let zip = world
-            .get_chunk(TEST_CHUNK_COORDS)
-            .unwrap()
-            .zip(zip::Algorithm::Zstd, zip::ZipLevel::High);
+//     for ev in evs.read() {
+//         let zip = world
+//             .get_chunk(TEST_CHUNK_COORDS)
+//             .unwrap()
+//             .zip(zip::Algorithm::Zstd, zip::ZipLevel::High);
 
-        info!("Sent chunk data with length {}.", zip.0.len());
+//         info!("Sent chunk data with length {}.", zip.0.len());
 
-        assert!(server.tcp_send(Packet {
-            payload: zip.0,
-            session: ev.session,
-            channel,
-        }));
-    }
-}
+//         assert!(server.tcp_send(Packet {
+//             payload: zip.0,
+//             session: ev.session,
+//             channel,
+//         }));
+//     }
+// }

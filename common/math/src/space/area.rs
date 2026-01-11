@@ -135,12 +135,12 @@ impl IArea {
         Pow2<X>: IsPow2,
         Pow2<Y>: IsPow2,
     {
-        let fx = !(X - 1);
-        let fy = !(Y - 1);
-        self.min.x &= fx;
-        self.min.y &= fy;
-        self.max.x += X - (self.max.x & fx);
-        self.max.y += Y - (self.max.y & fy);
+        let fx = X - 1;
+        let fy = Y - 1;
+        self.min.x &= !fx;
+        self.min.y &= !fy;
+        self.max.x = (self.max.x + fx) & !fx;
+        self.max.y = (self.max.y + fy) & !fy;
     }
 
     pub const fn rounded_up_to_pow2<const X: i32, const Y: i32>(mut self) -> Self
@@ -414,5 +414,266 @@ mod tests {
             IArea::new(ivec2(0, 0), ivec2(5, 5)),
         ];
         assert_eq!(expected, area.cells(5).collect::<Vec<_>>());
+    }
+
+    #[test]
+    fn test_intersection_complete_overlap() {
+        let a = IArea::new(ivec2(0, 0), ivec2(10, 10));
+        let b = IArea::new(ivec2(2, 2), ivec2(8, 8));
+        assert_eq!(a.intersection(&b), Some(b));
+    }
+
+    #[test]
+    fn test_intersection_partial_overlap() {
+        let a = IArea::new(ivec2(0, 0), ivec2(10, 10));
+        let b = IArea::new(ivec2(5, 5), ivec2(15, 15));
+        assert_eq!(
+            a.intersection(&b),
+            Some(IArea::new(ivec2(5, 5), ivec2(10, 10)))
+        );
+    }
+
+    #[test]
+    fn test_intersection_no_overlap() {
+        let a = IArea::new(ivec2(0, 0), ivec2(10, 10));
+        let b = IArea::new(ivec2(20, 20), ivec2(30, 30));
+        assert_eq!(a.intersection(&b), None);
+    }
+
+    #[test]
+    fn test_intersection_edge_adjacent_no_overlap() {
+        // Areas sharing an edge should NOT intersect (exclusive max)
+        let a = IArea::new(ivec2(0, 0), ivec2(10, 10));
+        let b = IArea::new(ivec2(10, 0), ivec2(20, 10));
+        assert_eq!(a.intersection(&b), None);
+    }
+
+    #[test]
+    fn test_intersection_corner_adjacent_no_overlap() {
+        // Areas touching at a corner should NOT intersect
+        let a = IArea::new(ivec2(0, 0), ivec2(10, 10));
+        let b = IArea::new(ivec2(10, 10), ivec2(20, 20));
+        assert_eq!(a.intersection(&b), None);
+    }
+
+    #[test]
+    fn test_intersection_single_point() {
+        // With exclusive max, min (5,5) max (6,6) represents single point
+        let a = IArea::new(ivec2(0, 0), ivec2(10, 10));
+        let b = IArea::new(ivec2(5, 5), ivec2(6, 6));
+        assert_eq!(
+            a.intersection(&b),
+            Some(IArea::new(ivec2(5, 5), ivec2(6, 6)))
+        );
+    }
+
+    #[test]
+    fn test_intersection_commutative() {
+        let a = IArea::new(ivec2(0, 0), ivec2(10, 10));
+        let b = IArea::new(ivec2(5, 5), ivec2(15, 15));
+        assert_eq!(a.intersection(&b), b.intersection(&a));
+    }
+
+    #[test]
+    fn test_intersection_with_negative_coords() {
+        let a = IArea::new(ivec2(-10, -10), ivec2(10, 10));
+        let b = IArea::new(ivec2(-5, -5), ivec2(5, 5));
+        assert_eq!(
+            a.intersection(&b),
+            Some(IArea::new(ivec2(-5, -5), ivec2(5, 5)))
+        );
+    }
+
+    #[test]
+    fn test_intersection_x_overlap_only() {
+        // Overlaps in X but not Y
+        let a = IArea::new(ivec2(0, 0), ivec2(10, 10));
+        let b = IArea::new(ivec2(5, 10), ivec2(15, 20));
+        assert_eq!(a.intersection(&b), None);
+    }
+
+    #[test]
+    fn test_intersection_y_overlap_only() {
+        // Overlaps in Y but not X
+        let a = IArea::new(ivec2(0, 0), ivec2(10, 10));
+        let b = IArea::new(ivec2(10, 5), ivec2(20, 15));
+        assert_eq!(a.intersection(&b), None);
+    }
+
+    #[test]
+    fn test_intersects_matches_intersection() {
+        let a = IArea::new(ivec2(0, 0), ivec2(10, 10));
+        let b = IArea::new(ivec2(5, 5), ivec2(15, 15));
+        let c = IArea::new(ivec2(20, 20), ivec2(30, 30));
+
+        assert_eq!(a.intersects(&b), a.intersection(&b).is_some());
+        assert_eq!(a.intersects(&c), a.intersection(&c).is_some());
+    }
+
+    #[test]
+    fn test_cells_pow2_all_cells_intersect_with_original_area() {
+        // Create an area that will be rounded up
+        let area = IArea::new(ivec2(0, 0), ivec2(1000, 1000));
+
+        // Get cells with 512x512 size
+        let cells: Vec<IArea> = area.cells_pow2::<512>().collect();
+
+        println!("Original area: {:?}", area);
+        println!("Number of cells: {}", cells.len());
+
+        // Every cell generated should intersect with the original area
+        for (i, cell) in cells.iter().enumerate() {
+            println!("Cell {}: {:?}", i, cell);
+            assert!(
+                area.intersects(cell),
+                "Cell {} at {:?} does not intersect with original area {:?}",
+                i,
+                cell,
+                area
+            );
+        }
+    }
+
+    #[test]
+    fn test_cells_pow2_vs_cells_produce_same_results() {
+        let area = IArea::new(ivec2(0, 0), ivec2(1000, 1000));
+
+        let cells_pow2: Vec<IArea> = area.cells_pow2::<512>().collect();
+        let cells_regular: Vec<IArea> = area.cells(512).collect();
+
+        assert_eq!(
+            cells_pow2.len(),
+            cells_regular.len(),
+            "cells_pow2 and cells should produce the same number of cells"
+        );
+
+        for (i, (pow2_cell, regular_cell)) in
+            cells_pow2.iter().zip(cells_regular.iter()).enumerate()
+        {
+            assert_eq!(
+                pow2_cell, regular_cell,
+                "Cell {} differs: pow2={:?}, regular={:?}",
+                i, pow2_cell, regular_cell
+            );
+        }
+    }
+
+    #[test]
+    fn test_cells_pow2_boundary_case_exact_multiple() {
+        // Area that is exactly a multiple of 512
+        let area = IArea::new(ivec2(0, 0), ivec2(1024, 1024));
+
+        let cells: Vec<IArea> = area.cells_pow2::<512>().collect();
+
+        // Should produce exactly 4 cells (2x2 grid)
+        assert_eq!(
+            cells.len(),
+            4,
+            "Expected 4 cells for 1024x1024 area with 512 cells"
+        );
+
+        let expected_cells = vec![
+            IArea::new(ivec2(0, 0), ivec2(512, 512)),
+            IArea::new(ivec2(512, 0), ivec2(1024, 512)),
+            IArea::new(ivec2(0, 512), ivec2(512, 1024)),
+            IArea::new(ivec2(512, 512), ivec2(1024, 1024)),
+        ];
+
+        for (i, (actual, expected)) in cells.iter().zip(expected_cells.iter()).enumerate() {
+            assert_eq!(
+                actual, expected,
+                "Cell {} mismatch: got {:?}, expected {:?}",
+                i, actual, expected
+            );
+        }
+    }
+
+    #[test]
+    fn test_cells_pow2_small_area_single_cell() {
+        // Area smaller than cell size should produce exactly 1 cell
+        let area = IArea::new(ivec2(100, 100), ivec2(200, 200));
+
+        let cells: Vec<IArea> = area.cells_pow2::<512>().collect();
+
+        println!("Original area: {:?}", area);
+        println!("Cells generated: {}", cells.len());
+        for (i, cell) in cells.iter().enumerate() {
+            println!("  Cell {}: {:?}", i, cell);
+        }
+
+        assert_eq!(cells.len(), 1, "Small area should produce exactly 1 cell");
+
+        // The single cell should contain the entire original area
+        let cell = cells[0];
+        assert!(
+            cell.contains(area.min) && cell.contains(ivec2(area.max.x - 1, area.max.y - 1)),
+            "Cell {:?} should contain entire original area {:?}",
+            cell,
+            area
+        );
+    }
+
+    #[test]
+    fn test_cells_pow2_negative_coordinates() {
+        let area = IArea::new(ivec2(-600, -600), ivec2(600, 600));
+
+        let cells: Vec<IArea> = area.cells_pow2::<512>().collect();
+
+        println!("Original area: {:?}", area);
+        println!("Number of cells: {}", cells.len());
+
+        // All cells should intersect with original
+        for (i, cell) in cells.iter().enumerate() {
+            println!("Cell {}: {:?}", i, cell);
+            assert!(
+                area.intersects(cell),
+                "Cell {} does not intersect with original area",
+                i
+            );
+        }
+    }
+
+    #[test]
+    fn test_cells_pow2_coverage_complete() {
+        // Verify that cells completely cover the rounded area with no gaps
+        let area = IArea::new(ivec2(0, 0), ivec2(1000, 1000));
+        let rounded = area.rounded_up_to_pow2::<512, 512>();
+
+        let cells: Vec<IArea> = area.cells_pow2::<512>().collect();
+
+        println!("Original: {:?}", area);
+        println!("Rounded: {:?}", rounded);
+
+        // Check every point in the rounded area is covered by exactly one cell
+        for y in (rounded.min.y..rounded.max.y).step_by(512) {
+            for x in (rounded.min.x..rounded.max.x).step_by(512) {
+                let point = ivec2(x, y);
+                let containing_cells: Vec<_> =
+                    cells.iter().filter(|cell| cell.contains(point)).collect();
+
+                assert_eq!(
+                    containing_cells.len(),
+                    1,
+                    "Point {:?} should be in exactly 1 cell, found in {} cells: {:?}",
+                    point,
+                    containing_cells.len(),
+                    containing_cells
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn test_cells_pow2_iterator_consistency() {
+        let area = IArea::new(ivec2(0, 0), ivec2(1000, 1000));
+
+        // Collect cells multiple times - should be identical
+        let cells1: Vec<IArea> = area.cells_pow2::<512>().collect();
+        let cells2: Vec<IArea> = area.cells_pow2::<512>().collect();
+
+        assert_eq!(
+            cells1, cells2,
+            "Multiple iterations should produce identical results"
+        );
     }
 }

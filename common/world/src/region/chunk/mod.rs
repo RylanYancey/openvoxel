@@ -672,69 +672,6 @@ impl Into<RegionId> for ChunkId {
     }
 }
 
-// /// A chunk ID that includes a distance from a player position,
-// /// and the relative position of the chunk.
-// ///
-// /// This is used when you want to store ChunkIds in a binary heap in
-// /// the order of nearest to furthest.
-// #[derive(Copy, Clone, Debug, Hash, Default)]
-// pub struct RelativeChunkId {
-//     // X and Z relative to player origin.
-//     rel_x: i16,
-//     rel_z: i16,
-
-//     /// Chebyshev distance to the player position.
-//     /// Computed by `u16::max(rel_x.unsigned_abs(), rel_z.unsigned_abs())`.
-//     dist: u16,
-// }
-
-// impl RelativeChunkId {
-//     /// Positions should be xz
-//     #[inline]
-//     pub fn new(chunk_origin: IVec2, player_pos: IVec2) -> Self {
-//         let rel_x = ((chunk_origin.x - player_pos.x) >> 5) as i16;
-//         let rel_z = ((chunk_origin.y - player_pos.y) >> 5) as i16;
-//         Self {
-//             rel_x,
-//             rel_z,
-//             dist: u16::max(rel_x.unsigned_abs(), rel_z.unsigned_abs()),
-//         }
-//     }
-
-//     /// Position should be xz
-//     pub const fn as_chunk_id(self, player_pos: IVec2) -> ChunkId {
-//         ChunkId::new(IVec2 {
-//             x: player_pos.x + ((self.rel_x as i32) << 5),
-//             y: player_pos.y + ((self.rel_z as i32) << 5),
-//         })
-//     }
-// }
-
-// impl Eq for RelativeChunkId {}
-// impl PartialEq for RelativeChunkId {
-//     fn eq(&self, other: &Self) -> bool {
-//         self.dist == other.dist && self.rel_x == other.rel_x && self.rel_z == other.rel_z
-//     }
-// }
-
-// impl Ord for RelativeChunkId {
-//     fn cmp(&self, other: &Self) -> Ordering {
-//         if self.dist != other.dist {
-//             other.dist.cmp(&self.dist)
-//         } else if self.rel_x != other.rel_x {
-//             other.rel_x.cmp(&self.rel_x)
-//         } else {
-//             other.rel_z.cmp(&self.rel_z)
-//         }
-//     }
-// }
-
-// impl PartialOrd for RelativeChunkId {
-//     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-//         Some(self.cmp(other))
-//     }
-// }
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -760,5 +697,42 @@ mod tests {
         assert!(mask.has(40));
         assert!(mask.has(73));
         assert!(!mask.has(98));
+    }
+
+    #[test]
+    fn chunk_id_to_index() {
+        let id = ChunkId::new(ivec2(512, 512));
+        assert_eq!(id.to_chunk_idx(), 0);
+        let id = ChunkId::new(ivec2(511, 511));
+        assert_eq!(id.to_chunk_idx(), 255);
+        let id = ChunkId::new(ivec2(0, 511));
+        assert_eq!(id.to_chunk_idx(), 240);
+        let id = ChunkId::new(ivec2(511, 0));
+        assert_eq!(id.to_chunk_idx(), 15);
+
+        let id = ChunkId::new(ivec2(-510, -510));
+        assert_eq!(id.to_chunk_idx(), 0);
+        let id = ChunkId::new(ivec2(-1, -1));
+        assert_eq!(id.to_chunk_idx(), 255);
+        let id = ChunkId::new(ivec2(0, -1));
+        assert_eq!(id.to_chunk_idx(), 240);
+        let id = ChunkId::new(ivec2(-1, 0));
+        assert_eq!(id.to_chunk_idx(), 15);
+    }
+
+    #[test]
+    fn chunk_id_to_region_id() {
+        assert_eq!(
+            ChunkId::new(ivec2(0, 0)).to_region_id(),
+            RegionId::new(ivec2(0, 0)),
+        );
+        assert_eq!(
+            ChunkId::new(ivec2(511, 511)).to_region_id(),
+            RegionId::new(ivec2(0, 0)),
+        );
+        assert_eq!(
+            ChunkId::new(ivec2(-510, -510)).to_region_id(),
+            RegionId::new(ivec2(-256, -256)),
+        );
     }
 }

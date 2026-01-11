@@ -409,6 +409,9 @@ impl<A: Allocator + Clone> Drop for Region<A> {
     }
 }
 
+unsafe impl<A: Allocator + Clone> Send for Region<A> {}
+unsafe impl<A: Allocator + Clone> Sync for Region<A> {}
+
 /// i = ((x / 32) % 16) + ((z / 32) % 16) * 16
 const fn to_chunk_index_wrapping(xz: IVec2) -> usize {
     (((xz.x >> 5) & 0xF) | (((xz.y >> 5) & 0xF) << 4)) as usize
@@ -445,22 +448,23 @@ impl RegionId {
     pub const MAX: Self = Self(u64::MAX);
 
     pub const fn new(xz: IVec2) -> Self {
-        Self((((xz.x & !511) as u64) << 32) | ((xz.y & !511) as u32 as u64))
+        Self((((xz.y & !511) as u64) << 32) | ((xz.x & !511) as u32 as u64))
+    }
+
+    pub const fn x(self) -> i32 {
+        (self.0 & 0xFFFFFFFF) as i32
+    }
+
+    pub const fn z(self) -> i32 {
+        (self.0 >> 32) as i32
     }
 
     pub const fn as_ivec2(&self) -> IVec2 {
-        IVec2 {
-            x: (self.0 >> 32) as i32,
-            y: (self.0 & 0xFFFFFFFF) as i32,
-        }
+        ivec2(self.x(), self.z())
     }
 
     pub const fn as_ivec3(&self, y: i32) -> IVec3 {
-        IVec3 {
-            x: (self.0 >> 32) as i32,
-            y,
-            z: (self.0 & 0xFFFFFFFF) as i32,
-        }
+        ivec3(self.x(), y, self.z())
     }
 
     pub const fn area(&self) -> IArea {
@@ -469,22 +473,6 @@ impl RegionId {
             min,
             max: ivec2(min.x + 512, min.y + 512),
         }
-    }
-
-    /// The lower 8 bits of the RegionId are always 0, so we can use that space for flags.
-    pub const fn _set_flags(&mut self, flags: u8) {
-        self.0 &= !0xFF;
-        self.0 |= flags as u64;
-    }
-
-    /// Clear the lower 8 bits, which may be used as flag bits.
-    pub const fn _clear_flags(&mut self) {
-        self.0 &= !0xFF
-    }
-
-    /// Get the RegionId without any set flags.
-    pub const fn _without_flags(&self) -> Self {
-        Self(self.0 & !0xFF)
     }
 }
 

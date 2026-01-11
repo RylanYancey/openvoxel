@@ -7,7 +7,7 @@ use zip::{SpanReader, UnzippedSpan};
 use crate::{
     Region,
     region::{
-        chunk::SubchunkMask,
+        chunk::{SubchunkMask, flags::ChunkState},
         format::{ChunkHeader, ChunkReadError},
     },
 };
@@ -173,6 +173,7 @@ pub fn read_chunk_from_span_v1<A: Allocator + Clone>(
 
     assert_eq!(changed.0, 0, "mask: 0x{:x}", changed.0);
 
+    chunk.state = ChunkState::from(header.state);
     chunk.revision = header.revision;
     chunk.span = Some(span);
 

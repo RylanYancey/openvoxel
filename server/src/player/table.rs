@@ -1,6 +1,6 @@
 use bevy::prelude::*;
 use protocol::session::{Session, SessionMap};
-use world::region::attribute::ChunkFlags;
+use world::region::attribute::ChunkMask;
 
 /// Map for resolving Sessions to player entities.
 #[derive(Resource, Default)]

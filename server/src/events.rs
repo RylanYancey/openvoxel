@@ -13,7 +13,14 @@ pub struct PlayerLeft {
     pub exit: ExitCode,
 }
 
+/// A region was just loaded into the World, either from disk
+/// or initialized as empty.
+#[derive(Message)]
+pub struct RegionLoaded(pub RegionId);
+
 /// A player's subscription to a Region changed.
+/// This can be triggered on regions that are not yet loaded into the World.
+/// This is triggered by the `Subscriber` in the `recompute_subscriptions` system.
 #[derive(Message)]
 pub struct SubscChanged {
     /// The Session of the affected player.
@@ -50,8 +57,13 @@ pub enum SubscInterest {
     Visual,
 
     /// The player has subbed/unsubbed to the region's simulation.
-    /// Players simulation subscribed are also subscribed to visual,
-    /// because the visual distance must be greater
-    /// than the simulation distance.
+    ///
+    /// Players subscribed to simulation are also subscribed to visual,
+    /// because the visual distance must be greater than the sim dist.
+    /// A separate event will not be created if simulation and visual
+    /// interest occur simulteneously.
+    ///
+    /// A player can unsubscribe from simulation, but still be subscribed
+    /// visually.
     Simulation,
 }

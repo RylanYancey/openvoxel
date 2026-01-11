@@ -51,6 +51,14 @@ impl<A: Allocator + Clone> UnzippedSpan<A> {
         unzip_to_span(src, alloc)
     }
 
+    pub fn header<T: Pod>(&self) -> Option<&T> {
+        if self.size >= std::mem::size_of::<T>() {
+            Some(unsafe { self.span.cast::<T>().as_ref() })
+        } else {
+            None
+        }
+    }
+
     pub fn reader(&self) -> SpanReader {
         SpanReader {
             ptr: self.span,

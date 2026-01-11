@@ -15,6 +15,7 @@ bitvec.workspace = true
 bytemuck.workspace = true
 bytes.workspace = true
 fxhash.workspace = true
+bitflags.workspace = true
 
 # Common dependencies
 data.path = "../data"

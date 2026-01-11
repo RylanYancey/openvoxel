@@ -1,3 +1,5 @@
+use std::alloc::Global;
+
 use crate::{
     World,
     region::{RegionAlloc, alloc::init_region_alloc},
@@ -21,11 +23,15 @@ impl Into<Bytes> for ZippedChunk {
     }
 }
 
-pub struct UnzippedChunk(pub UnzippedSpan<RegionAlloc>);
+pub struct UnzippedChunk(pub UnzippedSpan<Global>);
 
 impl UnzippedChunk {
     pub fn unzip(data: &[u8]) -> Result<Self, UnzipError> {
         Ok(Self(UnzippedSpan::unzip(data, &init_region_alloc())?))
+    }
+
+    pub fn header(&self) -> Option<&ChunkHeader> {
+        self.0.header::<ChunkHeader>()
     }
 }
 
@@ -43,7 +49,7 @@ pub enum ChunkFormat {
 impl ChunkFormat {
     pub const LATEST: Self = Self::V1;
 
-    pub fn from_u32(v: u32) -> Self {
+    pub fn from_u16(v: u16) -> Self {
         match v {
             1 => Self::V1,
             _ => Self::Unknown,
@@ -62,11 +68,16 @@ pub struct ChunkHeader {
     /// Distance between origin.y and extent.y
     pub height: i32,
 
+    /// ChunkState as u16
+    pub state: u16,
+
     /// Format used when the chunk was encoded.
-    pub format: u32,
+    pub format: u16,
 
     /// Number of non-empty subchunks present.
-    pub length: u32,
+    pub length: u16,
+
+    pub _unused: u16,
 
     /// The version number of the chunk.
     pub revision: u64,
@@ -143,14 +154,16 @@ pub fn read_chunk_from_span(
     };
 
     // Read subchunk data from the span.
-    match ChunkFormat::from_u32(header.format) {
-        ChunkFormat::Unknown => return Err(ChunkReadError::UnsupportedFormat(header.format)),
+    match ChunkFormat::from_u16(header.format) {
+        ChunkFormat::Unknown => {
+            return Err(ChunkReadError::UnsupportedFormat(header.format as u32));
+        }
         ChunkFormat::V1 => v1::read_chunk_from_span_v1(span, reader, region, &header)?,
     }
 
     Ok(ChunkReadSuccess {
         origin: header.origin,
-        format: ChunkFormat::from_u32(header.format),
+        format: ChunkFormat::from_u16(header.format),
     })
 }
 

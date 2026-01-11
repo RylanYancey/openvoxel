@@ -16,18 +16,22 @@ pub type ChunkBits = BitArray<[usize; CHUNK_FLAGS_LEN]>;
 ///
 /// Has a fixed length of 256.
 #[derive(Copy, Clone, Eq, PartialEq, Debug, Hash, Default)]
-pub struct ChunkFlags(ChunkBits);
+pub struct ChunkMask(ChunkBits);
 
-impl ChunkFlags {
+impl ChunkMask {
     pub const fn new() -> Self {
         Self(ChunkBits::ZERO)
     }
 
-    /// Construct a ChunkFlags from an Area.
+    pub const fn clear(&mut self) {
+        self.0 = ChunkBits::ZERO;
+    }
+
+    /// Construct a ChunkMask from an Area.
     /// The IArea is expected to be created with `IArea::intersection` of some
     /// are with the area of its containing region.
     pub fn from_area(area: &IArea) -> Self {
-        let mut mask = ChunkFlags::new();
+        let mut mask = ChunkMask::new();
         for cell in area.cells_pow2::<32>() {
             mask.set(cell.min, true);
         }
@@ -76,6 +80,10 @@ impl ChunkFlags {
             .expect("[W455] Index out of bounds in chunk flags.")
     }
 
+    pub fn set_index(&mut self, i: usize, v: bool) {
+        self.0.set(i, v)
+    }
+
     /// Get the intersection of self and rhs.
     pub fn intersection(&self, rhs: &Self) -> Self {
         Self(self.0 & rhs.0)
@@ -89,7 +97,7 @@ impl ChunkFlags {
     }
 }
 
-impl std::ops::Not for ChunkFlags {
+impl std::ops::Not for ChunkMask {
     type Output = Self;
 
     fn not(self) -> Self::Output {
@@ -97,9 +105,23 @@ impl std::ops::Not for ChunkFlags {
     }
 }
 
-impl std::ops::BitAnd for ChunkFlags {
+impl std::ops::BitAnd for ChunkMask {
     type Output = Self;
     fn bitand(self, rhs: Self) -> Self::Output {
         Self(self.0 & rhs.0)
+    }
+}
+
+impl std::ops::BitOr for ChunkMask {
+    type Output = Self;
+
+    fn bitor(self, rhs: Self) -> Self::Output {
+        Self(self.0 | rhs.0)
+    }
+}
+
+impl std::ops::BitOrAssign for ChunkMask {
+    fn bitor_assign(&mut self, rhs: Self) {
+        self.0 |= rhs.0
     }
 }

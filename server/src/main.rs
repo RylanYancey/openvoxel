@@ -1,3 +1,5 @@
+#![feature(allocator_api)]
+
 use std::time::Duration;
 
 use bevy::{
@@ -21,7 +23,6 @@ use protocol::{Packet, packet::SentBy};
 use crate::{
     events::{PlayerJoined, PlayerLeft, SubscChanged},
     net::{InitialMessageContent, Server, channel::Channel},
-    queues::LoadRegionReq,
 };
 
 pub mod config;
@@ -48,7 +49,7 @@ fn main() -> AppExit {
             TimePlugin,
             TransformPlugin,
             DiagnosticsPlugin,
-            ScheduleRunnerPlugin::run_loop(Duration::from_secs_f32(1.0 / 20.0)),
+            ScheduleRunnerPlugin::run_loop(Duration::from_secs_f32(1.0 / 30.0)),
             TerminalCtrlCHandlerPlugin,
             AssetPlugin::default(),
             StatesPlugin,
@@ -61,8 +62,6 @@ fn main() -> AppExit {
         .init_resource::<player::table::Players>()
         .init_sync_registry::<Channel>("channels")
         .insert_resource(World::new(256, -128))
-        .init_resource::<world::subscribe::Subscriber>()
-        .init_resource::<Queue<LoadRegionReq>>()
         // initialize messages
         .add_message::<PlayerJoined>()
         .add_message::<PlayerLeft>()
@@ -86,7 +85,6 @@ fn main() -> AppExit {
             player::apply_player_input,
             player::spawn_player_on_join,
             player::despawn_player_on_leave,
-            world::subscribe::recompute_subscriptions,
         ))
         // add post-update systems
         .add_systems(PostUpdate, (

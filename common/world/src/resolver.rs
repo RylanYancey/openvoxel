@@ -1,12 +1,11 @@
 use std::{
     alloc::{Allocator, Global, Layout},
     ptr::NonNull,
-    sync::{Arc, Weak},
 };
 
 use bevy::log::info;
 
-use crate::{Change, Region, World, region::RegionId};
+use crate::{Region, World, region::RegionId};
 
 pub(crate) struct OwnedResolver<A: Allocator = Global> {
     /// A Bucket is uninit if its key is RegionId::MAX.
@@ -28,9 +27,6 @@ pub(crate) struct OwnedResolver<A: Allocator = Global> {
 
     /// Generation used to make rebuilding faster.
     _gen: u32,
-
-    /// Used to safety-check the BorrowedResolvers.
-    is_valid: Arc<()>,
 
     /// Allocator for bucket ptr.
     alloc: A,
@@ -65,18 +61,7 @@ impl<A: Allocator> OwnedResolver<A> {
             shift: 63,
             state: 0xda3e_39cb_94b9_5bdb,
             _gen: 0,
-            is_valid: Arc::new(()),
             alloc,
-        }
-    }
-
-    pub fn get_borrowed(&self) -> BorrowedResolver {
-        BorrowedResolver {
-            buckets: self.buckets,
-            magic: self.magic,
-            shift: self.shift,
-            _gen: self._gen,
-            is_valid: Arc::downgrade(&self.is_valid),
         }
     }
 
@@ -126,10 +111,6 @@ impl<A: Allocator> OwnedResolver<A> {
         unsafe { self.buckets.add(hash).as_mut().key_eq_mut(id) }
     }
 
-    pub fn mark_invalid(&mut self) {
-        self.is_valid = Arc::new(())
-    }
-
     /// Replaces the bucket at `id` with Bucket::EMPTY and returns its index.
     /// Returns None if no region exists with this ID.
     pub unsafe fn remove(&mut self, id: RegionId) -> Option<usize> {
@@ -176,9 +157,6 @@ impl<A: Allocator> OwnedResolver<A> {
     }
 
     unsafe fn rebuild(&mut self, ptrs: &[NonNull<Region>]) {
-        // drop the old arc, so borrowed resolvers know they need to update.
-        self.mark_invalid();
-
         // The size of regions is the next power of two of the number of regions, multiplied by 4.
         let size = (ptrs.len().next_power_of_two() << 2).max(self.capacity);
 
@@ -324,86 +302,4 @@ fn rng(state: &mut u64) -> u64 {
     *state = state.wrapping_add(P0);
     let r = u128::from(*state).wrapping_mul(u128::from(*state ^ P1));
     ((r >> 64) ^ r) as u64
-}
-
-/// Intended to be placed in a Resource and kept up-to-date with the World.
-pub struct BorrowedRegionMap<T> {
-    items: Vec<T>,
-    resolver: BorrowedResolver,
-}
-
-impl<T> BorrowedRegionMap<T> {
-    pub(crate) unsafe fn new_assert_no_regions_loaded(resolver: &OwnedResolver) -> Self {
-        Self {
-            items: Vec::new(),
-            resolver: resolver.get_borrowed(),
-        }
-    }
-
-    #[inline(always)]
-    pub unsafe fn get(&self, id: RegionId) -> Option<&T> {
-        unsafe { self.resolver.get(id).map(|i| &self.items[i]) }
-    }
-
-    #[inline(always)]
-    pub unsafe fn get_mut(&mut self, id: RegionId) -> Option<&mut T> {
-        unsafe { self.resolver.get(id).map(|i| &mut self.items[i]) }
-    }
-
-    /// Pushes the item to the end of the map.
-    pub unsafe fn insert(&mut self, item: T) {
-        self.items.push(item);
-    }
-
-    /// Swap-removes the item at idx.
-    pub unsafe fn remove(&mut self, idx: usize) -> T {
-        self.items.swap_remove(idx)
-    }
-
-    pub unsafe fn update_resolver(&mut self, world: &World) {
-        self.resolver = world.resolver.get_borrowed()
-    }
-}
-
-struct BorrowedResolver {
-    /// Buckets can be either init or uninit.
-    buckets: NonNull<Bucket>,
-
-    /// Magic factor for hashing.
-    magic: u64,
-
-    /// Shift factor used to isolate the upper N bits.
-    shift: u32,
-
-    /// generation number used to determine which
-    /// buckets are uninit.
-    _gen: u32,
-
-    /// Used to check if the ptr is valid.
-    is_valid: Weak<()>,
-}
-
-impl BorrowedResolver {
-    #[inline]
-    fn assert_is_valid(&self) {
-        // Check that the pointer is still valid.
-        // This isn't a perfect validation, because the moment the `strong_count` function
-        // returns it could go to 0. But it's enough for us to figure out if we're doing
-        // it right. If we did, this should never be an issue.
-        assert_eq!(self.is_valid.strong_count(), 1);
-    }
-
-    #[inline(always)]
-    unsafe fn get(&self, id: RegionId) -> Option<usize> {
-        self.assert_is_valid();
-        let hash = (self.magic.wrapping_mul(id.0) >> self.shift) as usize;
-        unsafe {
-            let bucket = self.buckets.add(hash).as_ref();
-            if bucket.key == id {
-                Some(bucket.idx as usize)
-            } else {
-                None
-            }
-        }
-    }
 }

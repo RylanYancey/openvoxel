@@ -137,6 +137,18 @@ impl<V> SessionMap<V> {
         self.into_iter()
     }
 
+    /// Extract all elements for which the predicate returns true.
+    pub fn extract_if<'a, F>(&'a mut self, f: F) -> ExtractIf<'a, F, V>
+    where
+        F: FnMut(Session, &mut V) -> bool,
+    {
+        ExtractIf {
+            map: self,
+            curr: 0,
+            f,
+        }
+    }
+
     #[inline]
     fn pop_empty_slots(&mut self) {
         while let Some(_) = self.slots.pop_if(|slot| slot.is_empty()) {}
@@ -217,5 +229,41 @@ impl<'a, V> Iterator for IterMut<'a, V> {
             }
         }
         None
+    }
+}
+
+pub struct ExtractIf<'a, F, V>
+where
+    F: FnMut(Session, &mut V) -> bool,
+{
+    map: &'a mut SessionMap<V>,
+    curr: usize,
+    f: F,
+}
+
+impl<'a, F, V> Iterator for ExtractIf<'a, F, V>
+where
+    F: FnMut(Session, &mut V) -> bool,
+{
+    type Item = (Session, V);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        loop {
+            let k = match self.map.slots.get_mut(self.curr)? {
+                Slot::Empty => None,
+                Slot::Occupied { key, value } => {
+                    if (self.f)(*key, value) {
+                        Some(*key)
+                    } else {
+                        None
+                    }
+                }
+            };
+
+            self.curr += 1;
+            if let Some(key) = k {
+                return self.map.remove(key).map(|item| (key, item));
+            }
+        }
     }
 }

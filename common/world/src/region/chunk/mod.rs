@@ -7,13 +7,18 @@ use super::{
     format::{ChunkFormat, ChunkHeader},
     subchunk::Subchunk,
 };
+use crate::region::RegionId;
+use crate::region::chunk::flags::ChunkState;
 use crate::region::format::ZippedChunk;
 use crate::voxel::{Light, Voxel, VoxelState};
-use bevy::math::{IVec2, IVec3, ivec3};
+use bevy::math::{IVec2, IVec3, Vec2, Vec3, Vec3Swizzles, ivec2, ivec3};
+use bytes::Bytes;
 use column::{ColumnData, ColumnMap};
+use math::space::area::IArea;
 use zip::{Algorithm, UnzippedSpan, ZipLevel, Zipper};
 
 pub mod column;
+pub mod flags;
 
 /// A vertical column of subchunks in a Region.
 pub struct Chunk<A: Allocator + Clone = RegionAlloc> {
@@ -36,11 +41,21 @@ pub struct Chunk<A: Allocator + Clone = RegionAlloc> {
     /// Used to determine if clients need to be sent updates.
     pub(crate) revision: u64,
 
+    /// Minimum position contained by this chunk.
+    pub(crate) origin: IVec3,
+
     /// De-compressed chunk data that is shared across all subchunks.
     pub(crate) span: Option<UnzippedSpan<A>>,
 
-    /// Minimum position contained by this chunk.
-    pub(crate) origin: IVec3,
+    /// The load state of the chunk.
+    pub(crate) state: ChunkState,
+
+    /// Whether the chunk needs to be saved to disk.
+    pub(crate) needs_save: bool,
+
+    /// Compressed chunk data.
+    /// If this is "None", it means the chunk needs saving.
+    pub(crate) zip: Option<ZippedChunk>,
 }
 
 impl<A: Allocator + Clone> Chunk<A> {
@@ -72,8 +87,15 @@ impl<A: Allocator + Clone> Chunk<A> {
             columns: ColumnMap::new(ColumnData::default(), alloc),
             span: None,
             revision: 0,
+            needs_save: false,
+            state: ChunkState::Unloaded,
             origin,
+            zip: None,
         }
+    }
+
+    pub const fn id(&self) -> ChunkId {
+        ChunkId::new(ivec2(self.origin.x, self.origin.z))
     }
 
     /// The minimum coordinate contained by this chunk.
@@ -98,6 +120,25 @@ impl<A: Allocator + Clone> Chunk<A> {
 
     pub const fn min_y(&self) -> i32 {
         self.origin.y
+    }
+
+    pub const fn area(&self) -> IArea {
+        IArea {
+            min: ivec2(self.origin.x, self.origin.z),
+            max: ivec2(self.origin.x + 32, self.origin.z + 32),
+        }
+    }
+
+    pub const fn load_state(&self) -> ChunkState {
+        self.state
+    }
+
+    pub const fn load_state_mut(&mut self) -> &mut ChunkState {
+        &mut self.state
+    }
+
+    pub fn get_cached_zip(&self) -> Option<ZippedChunk> {
+        self.zip.clone()
     }
 
     /// Get the column value for this column.
@@ -291,12 +332,8 @@ impl<A: Allocator + Clone> Chunk<A> {
         }
     }
 
-    /// Get the size estimate of the chunk once zipped.
-    /// Its just the total size divided by 4.
-    pub(crate) fn get_zipped_size_estimate(&self) -> usize {
-        self.iter()
-            .fold(0usize, |sum, subchunk| sum + subchunk.get_size_estimate())
-            / 4
+    pub fn set_cached_zip(&mut self, zip: ZippedChunk) {
+        self.zip = Some(zip);
     }
 
     pub fn zip(&self, alg: Algorithm, level: ZipLevel) -> ZippedChunk {
@@ -304,7 +341,8 @@ impl<A: Allocator + Clone> Chunk<A> {
             Algorithm::Zstd => self.init_and_zip::<zip::ZstdZipper>(level),
             Algorithm::Lz4 => self.init_and_zip::<zip::Lz4Zipper>(level),
         };
-        ZippedChunk(protocol::bytes::Bytes::from(result))
+        let buf = Bytes::from(result);
+        ZippedChunk(buf)
     }
 
     fn init_and_zip<Z: Zipper>(&self, level: ZipLevel) -> Vec<u8> {
@@ -320,8 +358,10 @@ impl<A: Allocator + Clone> Chunk<A> {
         let header = ChunkHeader {
             origin: self.origin,
             height: self.height,
-            format: ChunkFormat::LATEST as u32,
-            length: mask.0.count_ones(),
+            format: ChunkFormat::LATEST as u16,
+            length: mask.0.count_ones() as u16,
+            state: self.state as u16,
+            _unused: 0,
             revision: self.revision,
         };
         // write headers
@@ -334,6 +374,18 @@ impl<A: Allocator + Clone> Chunk<A> {
 
     pub fn mask(&self) -> SubchunkMask {
         SubchunkMask::between_y_values(self.min_y(), self.max_y())
+    }
+
+    /// Get the cached zip, or re-zip it.
+    pub fn get_cached_or_zip(&mut self, alg: Algorithm, level: ZipLevel) -> ZippedChunk {
+        if let Some(cached) = &self.zip {
+            cached.clone()
+        } else {
+            self.needs_save = true;
+            let ret = self.zip(alg, level);
+            self.zip = Some(ret.clone());
+            ret
+        }
     }
 
     #[cfg(test)]
@@ -541,6 +593,147 @@ impl Iterator for SubchunkMaskIter {
         }
     }
 }
+
+/// A Unique Identifier for a Region, based on its XZ origin.
+#[derive(Copy, Clone, Eq, PartialEq, Debug, Ord, PartialOrd, Hash, Default)]
+pub struct ChunkId(pub u64);
+
+impl ChunkId {
+    pub const MAX: Self = Self(u64::MAX);
+
+    pub const fn new(xz: IVec2) -> Self {
+        // low 32 bits are X, high 32 bits are Z.
+        Self((((xz.y & !31) as u64) << 32) | ((xz.x & !31) as u32 as u64))
+    }
+
+    pub const fn x(&self) -> i32 {
+        (self.0 & 0xFFFFFFFF) as i32
+    }
+
+    pub const fn z(&self) -> i32 {
+        (self.0 >> 32) as i32
+    }
+
+    pub const fn as_ivec2(self) -> IVec2 {
+        ivec2(self.x(), self.z())
+    }
+
+    pub const fn as_ivec3(self, y: i32) -> IVec3 {
+        ivec3(self.x(), y, self.z())
+    }
+
+    pub const fn area(self) -> IArea {
+        let min = self.as_ivec2();
+        IArea {
+            min,
+            max: ivec2(min.x + 32, min.y + 32),
+        }
+    }
+
+    /// Convert to RegionId by masking out irrelevant bits.
+    pub const fn to_region_id(self) -> RegionId {
+        RegionId(self.0 & !((((1 << 9) - 1) << 32) | ((1 << 9) - 1)))
+    }
+
+    /// Convert to an index of a chunk in any Region.
+    /// This means low 4 bits are X, then 4 bits Z.
+    pub const fn to_chunk_idx(self) -> usize {
+        (((self.0 >> 33) | ((self.0 >> 5) & 0xF)) & 0xFF) as usize
+    }
+}
+
+impl From<IVec2> for ChunkId {
+    fn from(value: IVec2) -> Self {
+        Self::new(value)
+    }
+}
+
+impl From<IVec3> for ChunkId {
+    fn from(value: IVec3) -> Self {
+        Self::new(value.xz())
+    }
+}
+
+impl From<Vec2> for ChunkId {
+    fn from(value: Vec2) -> Self {
+        Self::from(value.as_ivec2())
+    }
+}
+
+impl From<Vec3> for ChunkId {
+    fn from(value: Vec3) -> Self {
+        Self::from(value.xz().as_ivec2())
+    }
+}
+
+impl Into<RegionId> for ChunkId {
+    fn into(self) -> RegionId {
+        self.to_region_id()
+    }
+}
+
+// /// A chunk ID that includes a distance from a player position,
+// /// and the relative position of the chunk.
+// ///
+// /// This is used when you want to store ChunkIds in a binary heap in
+// /// the order of nearest to furthest.
+// #[derive(Copy, Clone, Debug, Hash, Default)]
+// pub struct RelativeChunkId {
+//     // X and Z relative to player origin.
+//     rel_x: i16,
+//     rel_z: i16,
+
+//     /// Chebyshev distance to the player position.
+//     /// Computed by `u16::max(rel_x.unsigned_abs(), rel_z.unsigned_abs())`.
+//     dist: u16,
+// }
+
+// impl RelativeChunkId {
+//     /// Positions should be xz
+//     #[inline]
+//     pub fn new(chunk_origin: IVec2, player_pos: IVec2) -> Self {
+//         let rel_x = ((chunk_origin.x - player_pos.x) >> 5) as i16;
+//         let rel_z = ((chunk_origin.y - player_pos.y) >> 5) as i16;
+//         Self {
+//             rel_x,
+//             rel_z,
+//             dist: u16::max(rel_x.unsigned_abs(), rel_z.unsigned_abs()),
+//         }
+//     }
+
+//     /// Position should be xz
+//     pub const fn as_chunk_id(self, player_pos: IVec2) -> ChunkId {
+//         ChunkId::new(IVec2 {
+//             x: player_pos.x + ((self.rel_x as i32) << 5),
+//             y: player_pos.y + ((self.rel_z as i32) << 5),
+//         })
+//     }
+// }
+
+// impl Eq for RelativeChunkId {}
+// impl PartialEq for RelativeChunkId {
+//     fn eq(&self, other: &Self) -> bool {
+//         self.dist == other.dist && self.rel_x == other.rel_x && self.rel_z == other.rel_z
+//     }
+// }
+
+// impl Ord for RelativeChunkId {
+//     fn cmp(&self, other: &Self) -> Ordering {
+//         if self.dist != other.dist {
+//             other.dist.cmp(&self.dist)
+//         } else if self.rel_x != other.rel_x {
+//             other.rel_x.cmp(&self.rel_x)
+//         } else {
+//             other.rel_z.cmp(&self.rel_z)
+//         }
+//     }
+// }
+
+// impl PartialOrd for RelativeChunkId {
+//     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+//         Some(self.cmp(other))
+//     }
+// }
 
 #[cfg(test)]
 mod tests {

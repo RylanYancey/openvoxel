@@ -12,16 +12,13 @@ use bevy::{
 };
 use zip::UnzippedSpan;
 
+use crate::region::{
+    RegionAlloc, RegionId,
+    format::{ChunkReadError, ChunkReadSuccess, UnzippedChunk},
+};
 pub use crate::{
     region::{BiomeId, Chunk, ColumnData, Region, Subchunk},
     voxel::{Light, Voxel, VoxelState},
-};
-use crate::{
-    region::{
-        RegionAlloc, RegionId,
-        format::{ChunkReadError, ChunkReadSuccess, UnzippedChunk},
-    },
-    resolver::BorrowedRegionMap,
 };
 
 pub mod knn;
@@ -36,7 +33,6 @@ pub struct World {
     height: usize,
     max_y: i32,
     min_y: i32,
-    changes: Vec<Change>,
 }
 
 impl World {
@@ -49,7 +45,6 @@ impl World {
         Self {
             regions: Vec::new(),
             resolver: resolver::OwnedResolver::new(),
-            changes: Vec::new(),
             height,
             max_y,
             min_y,
@@ -80,7 +75,6 @@ impl World {
         assert_eq!(region.origin().y, self.min_y);
         assert_eq!(region.limit().y, self.max_y);
         assert!(!self.has_region(region.id()));
-        self.changes.push(Change::Insert(region.id()));
         self.regions.push(Box::into_non_null(region));
         unsafe { self.resolver.insert_and_rebuild_if_needed(&self.regions) }
     }
@@ -113,9 +107,8 @@ impl World {
     pub fn remove(&mut self, id: impl Into<RegionId>) -> Option<Box<Region>> {
         let id = id.into();
         if let Some(i) = unsafe { self.resolver.remove(id) } {
-            self.changes.push(Change::Remove(i));
             let ptr = if i != self.regions.len() - 1 {
-                // region at last index in `regions` will be moved to
+                // region at last index in `regions` will be moved to removed index
                 let last_id = unsafe { self.regions.last().unwrap().as_ref().id() };
                 self.resolver.set_bucket_index(last_id, i);
                 self.regions.swap_remove(i)
@@ -126,23 +119,6 @@ impl World {
         } else {
             None
         }
-    }
-
-    pub unsafe fn get_change(&mut self) -> Option<Change> {
-        if self.changes.is_empty() {
-            None
-        } else {
-            Some(self.changes.remove(0))
-        }
-    }
-
-    pub unsafe fn init_borrowed_region_map<T>(&mut self) -> BorrowedRegionMap<T> {
-        assert_eq!(
-            self.regions.len(),
-            0,
-            "cannot initialize BorrowedRegionMap while more than zero regions exist."
-        );
-        unsafe { BorrowedRegionMap::new_assert_no_regions_loaded(&self.resolver) }
     }
 
     /// Check whether the region exists in the map.
@@ -331,11 +307,6 @@ impl World {
             None
         }
     }
-}
-
-pub enum Change {
-    Insert(RegionId),
-    Remove(usize),
 }
 
 unsafe impl Send for World {}

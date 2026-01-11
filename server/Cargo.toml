@@ -15,6 +15,7 @@ serde_json.workspace = true
 bevy.workspace = true
 fxhash.workspace = true
 bitflags.workspace = true
+bytemuck.workspace = true
 
 # common dependencies
 math.path = "../common/math"
@@ -26,6 +27,8 @@ zip.path = "../common/zip"
 # Local dependencies
 getrandom = "0.3.4"
 aligned-vec = "0.6.4"
+memmap2 = "0.9.9"
+zorder = "0.2.2"
 
 # TUI dependencies
 ratatui = { version = "0.30.0", optional = true }

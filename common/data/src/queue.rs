@@ -1,5 +1,5 @@
 use bevy::prelude::*;
-use priority_queue::PriorityQueue;
+pub use priority_queue::PriorityQueue;
 use std::{collections::VecDeque, hash::Hash};
 
 /// A "Queue" resource that can have multiple different internal implementations.
@@ -78,7 +78,15 @@ where
     /// increased and "true" is returned.
     #[inline]
     pub fn push(&mut self, item: T) -> bool {
-        self.buffer.push_increase(item, 0).is_some()
+        self.push_with_priority(item, 1)
+    }
+
+    /// Push an item onto the Queue with an assigned priority.
+    /// If the item already exists, its priority is
+    /// increased and "true" is returned.
+    #[inline]
+    pub fn push_with_priority(&mut self, item: T, prio: u64) -> bool {
+        self.buffer.push_increase(item, prio).is_some()
     }
 
     /// Pop the highest priority item off the queue.

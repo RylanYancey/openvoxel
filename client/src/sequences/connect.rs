@@ -11,7 +11,7 @@ use data::{
 
 use crate::{
     events::{PlayerConnected, SyncRegistries},
-    net::{Channel, Client},
+    net::{Client, channel::Channel},
 };
 
 #[derive(Default, States, Eq, PartialEq, Debug, Clone, Hash)]

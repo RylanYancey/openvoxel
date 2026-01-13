@@ -15,3 +15,25 @@ No matter _who_ or _where_ you are, some version of Open Voxel will be available
 The cost of OpenVoxel on most platforms will be somewhere in the range of 5$ to 10$ per yer, per account. A subscription model like this is ultimately **much better** than a 1-time cost because it will allow us to cater to the existing playerbase instead of new players. Minecraft, for example, has to cater to kids because its monetization strategy is based purely on growth. Trackmania on the other hand can cater to its existing _very dedicated_ playerbase because they have a subscription model. The subscription will include the latest version of the game, access to pre-releases (PC version only), and server hosting. 
 
 As mentioned in the Goals section, the PC/Web version will have a free mode that is always a few versions behind. This way, even those who are economically disadvantaged can enjoy the game - if not with the latest features.
+
+## Todo
+ - [x] Vertex Quantization
+ - [x] Greedy Meshing
+ - [x] TCP IO Runtime process
+ - [x] Region File Loading/Saving
+ - [x] (super fast) Subchunk Palettization 
+ - [x] TCP Chunk Transmission
+ - [x] Colored Lights
+ - [x] Multiplayer
+ - [x] Chunk Subscription (working, possibly incomplete)
+ - [x] Connection/Session Management
+ - [ ] Chunk Generation
+ - [ ] Structures
+ - [ ] Block Colliders
+ - [ ] Entity Instancing
+ - [ ] Tile Entities
+ - [ ] GPU Lightmaps
+ - [ ] Light Propogation 
+ - [ ] Ambient Occlusion
+ - [x] Sequence Management
+ - [x] Focus Management

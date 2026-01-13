@@ -131,7 +131,7 @@ impl Subscriber {
         self.trackers
             .extract_if(|_, tracker| !std::mem::replace(&mut tracker.exists, false))
             .count()
-            == 0
+            != 0
     }
 
     fn clear_buckets(&mut self) {
@@ -262,8 +262,8 @@ impl Subscriber {
 impl Default for Subscriber {
     fn default() -> Self {
         Self {
-            draw_distance: 256,
-            sim_distance: 128,
+            draw_distance: 64,
+            sim_distance: 32,
             sends_per_tick_limit: 5,
             trackers: SessionMap::new(),
             buckets: FxHashMap::default(),
@@ -371,6 +371,7 @@ pub fn process_chunk_send_queues(
                         ChunkState::Generating => {
                             // Push this chunk up in the queue.
                             generator.enqueue(id, distance);
+                            break;
                         }
 
                         // Chunk is loaded and ready to be sent.
@@ -391,6 +392,7 @@ pub fn process_chunk_send_queues(
                 } else {
                     // request region load.
                     loader.open_region(id, distance);
+                    break;
                 }
 
                 if needs_load {
@@ -415,6 +417,7 @@ pub fn process_chunk_send_queues(
                             let chunk = world.get_chunk_mut(origin).unwrap();
                             *chunk.load_state_mut() = ChunkState::Generating;
                             generator.enqueue(id, distance);
+                            break;
                         }
                         Err(ChunkReadError::RegionNotLoaded) => {
                             todo!("handle this")
@@ -506,6 +509,7 @@ impl Tracker {
             // recomputations updates matter more than non-recomputations.
             self.activity.update(ACTIVITY_RISE_ALPHA);
             self.prev_pos = pos;
+            self.recompute = true;
         } else {
             self.activity.update(ACTIVITY_FALL_ALPHA);
         }

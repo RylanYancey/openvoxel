@@ -17,7 +17,10 @@ use std::sync::Arc;
 
 use bevy::prelude::*;
 use data::queue::PriorityQueue;
-use math::{noise::simplex::simplex2, rng::Permutation};
+use math::{
+    noise::simplex::{simplex2, simplex2_derivative},
+    rng::Permutation,
+};
 use world::{
     Voxel, World,
     region::chunk::{ChunkId, flags::ChunkState},
@@ -29,10 +32,27 @@ pub mod terrain;
 #[derive(Resource)]
 pub struct WorldGenerator {
     queue: PriorityQueue<ChunkId, u32>,
-    perm: Arc<Permutation>,
+    perm1: Arc<Permutation>,
+    perm2: Arc<Permutation>,
 }
 
 impl WorldGenerator {
+    pub fn from_entropy() -> Self {
+        Self {
+            queue: PriorityQueue::new(),
+            perm1: Permutation::from_entropy(),
+            perm2: Permutation::from_entropy(),
+        }
+    }
+
+    pub fn new(seed: u128) -> Self {
+        Self {
+            queue: PriorityQueue::default(),
+            perm1: Permutation::new(seed),
+            perm2: Permutation::new(seed ^ u128::from(0x8375897581235738_u64)),
+        }
+    }
+
     /// Enqueue a chunk for generation.
     /// The "distance" is used to compute priority, and should be
     /// the chebyshev distance from the player to the chunk's origin.
@@ -44,10 +64,7 @@ impl WorldGenerator {
 
 impl Default for WorldGenerator {
     fn default() -> Self {
-        Self {
-            queue: PriorityQueue::default(),
-            perm: Permutation::from_entropy(),
-        }
+        Self::from_entropy()
     }
 }
 
@@ -58,8 +75,8 @@ pub fn process_world_generator_queue(
     if let Some((id, _)) = generator.queue.pop() {
         if let Some(chunk) = world.get_chunk_mut(id.as_ivec2()) {
             for pt in chunk.area() {
-                let y = chunk.min_y()
-                    + ((1.0 + simplex2(&generator.perm, pt.as_vec2() * 0.007)) * 128.0) as i32;
+                let pt_scaled = pt.as_vec2() * 0.01;
+                let y = (32.0 * (simplex2(&generator.perm2, pt_scaled))) as i32;
                 let mut top = ivec3(pt.x, y, pt.y);
                 while top.y >= chunk.min_y() {
                     chunk.set_voxel(top, Voxel(1));

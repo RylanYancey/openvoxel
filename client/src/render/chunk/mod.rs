@@ -123,7 +123,6 @@ pub fn render_chunks(
         }
 
         if let Some(mesh) = renderer.combiner.combine(Transparency::Opaque) {
-            info!("Mesh built, spawning entity.");
             commands.spawn((
                 Transform {
                     translation: origin.as_vec3(),

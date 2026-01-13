@@ -1,77 +1,62 @@
-use bevy::prelude::*;
+use bevy::{ecs::intern::Interned, prelude::*};
 
-#[derive(States, PartialEq, Eq, Clone, Debug, Hash, Default)]
+use crate::focus::Focus;
+
+pub type SetConfigs =
+    bevy::ecs::schedule::ScheduleConfigs<Interned<dyn bevy::prelude::SystemSet + 'static>>;
+
+pub trait IntoSetConfigs {
+    fn cfg(&self) -> SetConfigs;
+}
+
+/// State of the application as a whole.
+#[derive(States, PartialEq, Eq, Clone, Copy, Debug, Hash, Default)]
 pub enum AppState {
+    /// Startup sequence is executing.
     #[default]
     Starting,
+
+    /// Player is in the title menu.
     InMenus,
+
+    /// Player is in a transition state, either between
+    /// InMenus to InGame, or InGame to InGame.
+    InSequence,
+
+    /// Player is connected to a server.
     InGame,
 }
 
-#[derive(States, PartialEq, Eq, Clone, Debug, Hash, Default)]
-pub enum ConnectState {
+/// Describes the behavior of the cursor.
+#[derive(States, Default, Eq, PartialEq, Debug, Clone, Copy, Hash)]
+pub enum CursorMode {
+    /// The cursor is visible and can be used to interact with UI elements.
     #[default]
-    Offline,
-    Connecting,
-    Connected,
+    Normal,
+
+    /// Cursor is hidden and locked in place. Mouse motion is used
+    /// as camera movement. Only active when the Player is focused.
+    Locked,
 }
 
-/// A system set for behavior that runs when the player is fully connected to a server
-/// and is not in any transitional states, such as world transitions.
-#[derive(SystemSet, Eq, PartialEq, Debug, Default, Clone, Hash)]
-pub struct InGame;
-
-/// 20 game ticks per second.
-#[derive(Resource, Default, Copy, Clone, Eq, PartialEq, Debug, Deref)]
-pub struct GameTick {
-    #[deref]
-    tick: u64,
-
-    /// Whether the GT just changed.
-    just_changed: bool,
-}
-
-/// Run condition for game tick.
-/// To have a system that runs every game tick, do `run_if(on_tick(0))`.
-pub fn on_tick(n: u64) -> impl FnMut(Res<GameTick>) -> bool {
-    move |gt: Res<GameTick>| {
-        if n != 0 {
-            gt.tick % n == 0 && gt.just_changed
-        } else {
-            gt.just_changed
+pub fn update_cursor_mode(
+    app_state: Res<State<AppState>>,
+    curr: ResMut<State<CursorMode>>,
+    mut next: ResMut<NextState<CursorMode>>,
+    focus: Focus,
+) {
+    match curr.get() {
+        CursorMode::Normal => {
+            // set cursor mode to locked if player has focus and is in-game.
+            if focus.player_has_focus() && *app_state == AppState::InGame {
+                next.set(CursorMode::Locked);
+            }
+        }
+        CursorMode::Locked => {
+            // set cursor mode to normal if not in game or not player has focus.
+            if !focus.player_has_focus() || *app_state != AppState::InGame {
+                next.set(CursorMode::Normal);
+            }
         }
     }
-}
-
-/// increment GameTick by 1
-pub fn update_game_tick(mut gt: ResMut<GameTick>) {
-    gt.tick += 1;
-    gt.just_changed = true;
-}
-
-/// Runs before `update_game_tick` in the First schedule to track whether it has just changed.
-pub fn set_game_tick_not_just_changed(mut gt: ResMut<GameTick>) {
-    gt.just_changed = false;
-}
-
-/// Systems that run whenever the GameTick is a multiple of some number.
-#[derive(SystemSet, PartialEq, Eq, Clone, Debug, Hash)]
-pub enum TickSets {
-    /// The send buffers will flush in the `PostUpdate` schedule.
-    Flush,
-}
-
-#[derive(Default, States, Eq, PartialEq, Debug, Clone, Copy, Hash)]
-pub enum PlayerStance {
-    #[default]
-    Standing,
-    Crouching,
-    Crawling,
-}
-
-#[derive(Default, States, Eq, PartialEq, Debug, Clone, Copy, Hash)]
-pub enum InputState {
-    Free,
-    #[default]
-    Ui,
 }

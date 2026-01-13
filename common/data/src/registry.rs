@@ -212,6 +212,18 @@ pub struct Entry<T> {
     pub id: RegistryId,
 }
 
+impl<'a, T> IntoIterator for &'a Entry<T>
+where
+    &'a T: IntoIterator,
+{
+    type IntoIter = <&'a T as IntoIterator>::IntoIter;
+    type Item = <&'a T as IntoIterator>::Item;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.item.into_iter()
+    }
+}
+
 static REGISTRY_NAME_INTERNER: Interner<str> = Interner::new();
 
 #[derive(Debug)]

@@ -37,9 +37,4 @@ pub enum Transparency {
     Mask = 2,
 }
 
-pub struct Element {
-    pub vertices: [[i8; 3]; 4],
-    pub texture: u16,
-    pub coverage: Option<Coverage>,
-    pub normal: Normal,
-}
+pub struct Element {}

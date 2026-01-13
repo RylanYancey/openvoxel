@@ -21,3 +21,12 @@ impl Channel {
         }
     }
 }
+
+impl<'a> IntoIterator for &'a Channel {
+    type IntoIter = std::slice::Iter<'a, Packet>;
+    type Item = &'a Packet;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.incoming.iter()
+    }
+}

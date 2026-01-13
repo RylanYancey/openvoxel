@@ -24,7 +24,7 @@ impl Permutation {
         Self(arr)
     };
 
-    pub fn from_seed(s: u64) -> Arc<Self> {
+    pub fn new(s: u128) -> Arc<Self> {
         Arc::new(<Self as SeedableRng>::from_seed(s.to_ne_bytes()))
     }
 
@@ -51,16 +51,26 @@ impl Index<usize> for Permutation {
 }
 
 impl SeedableRng for Permutation {
-    type Seed = [u8; core::mem::size_of::<u64>()];
+    type Seed = [u8; core::mem::size_of::<u128>()];
 
     fn from_seed(seed: Self::Seed) -> Self {
+        let s1: u64 = u64::from_ne_bytes(seed[..8].try_into().unwrap());
+        let s2: u64 = u64::from_ne_bytes(seed[8..].try_into().unwrap());
+
         // initialize rng for shuffling.
-        let mut rng = super::BitRng::from_seed(seed);
+        let mut rng1 = super::BitRng::new(s1);
+        let mut rng2 = super::BitRng::new(s2);
+
         let mut ret = Self::DEFAULT;
 
         // shuffle lower 256 elements
         for i in 0..256 {
-            ret.0.swap(i, rng.take(8) as usize);
+            // alternative between rng1 and rng2.
+            if i & 2 == 0 {
+                ret.0.swap(i, rng1.take(8) as usize);
+            } else {
+                ret.0.swap(i, rng2.take(8) as usize);
+            }
         }
 
         // copy lower 256 to upper 256.

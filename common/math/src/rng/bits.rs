@@ -22,6 +22,14 @@ pub struct BitRng {
 }
 
 impl BitRng {
+    pub const fn new(s: u64) -> Self {
+        Self {
+            seed: s,
+            state: 0,
+            remaining: 0,
+        }
+    }
+
     pub fn from_entropy() -> Self {
         Self::from_os_rng()
     }

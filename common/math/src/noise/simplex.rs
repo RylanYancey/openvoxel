@@ -65,6 +65,97 @@ pub fn simplex2(perm: &Permutation, point: Vec2) -> f32 {
     (dot * att).reduce_sum() * 70.0
 }
 
+/// 2D Simplex Noise with derivatives. Returns [value, dx, dy]
+#[inline]
+pub fn simplex2_derivative(perm: &Permutation, point: Vec2) -> [f32; 3] {
+    // factors for skewing to simplex space.
+    const SQRT_3: f32 = 1.73205080757;
+    const F2: f32 = 0.5 * (SQRT_3 - 1.0);
+    const G2: f32 = (3.0 - SQRT_3) / 6.0;
+    const GRAD2: [Vec2; 8] = [
+        vec2(1.0, 1.0),
+        vec2(-1.0, 1.0),
+        vec2(1.0, -1.0),
+        vec2(-1.0, -1.0),
+        vec2(1.0, 0.0),
+        vec2(-1.0, 0.0),
+        vec2(0.0, 1.0),
+        vec2(0.0, -1.0),
+    ];
+    // skew input space to determine which simplex cell we're in
+    let s = point.element_sum() * F2;
+    let ij = (point + s).floor().as_ivec2();
+    // Unskew back to (x, y) space
+    let t = ij.element_sum() as f32 * G2;
+    let xy = point - (ij.as_vec2() - t);
+
+    // Offsets for second and third corner of the simplex cell.
+    let ij1x = (xy.x > xy.y) as i32;
+    let ij1y = ij1x ^ 1;
+    let ij1 = ivec2(ij1x, ij1y);
+
+    // compute offsets for corners in (x, y) coords.
+    let xy0 = xy;
+    let xy1 = xy - ij1.as_vec2() + G2;
+    let xy2 = xy - 1.0 + 2.0 * G2;
+
+    // Compute vertices in square space.
+    let ij0 = ij;
+    let ij2 = ij + ivec2(1, 1);
+
+    // compute component hashes
+    let hx0 = perm[(ij0.x & 255) as usize] as usize;
+    let hy0 = perm[(ij0.y & 255) as usize] as usize;
+    let hx1 = perm[(ij2.x & 255) as usize] as usize;
+    let hy1 = perm[(ij2.y & 255) as usize] as usize;
+
+    // Mix values together
+    let h0 = perm[hx0 + hy0] as usize;
+    let h1 = perm[if xy.x > xy.y { hx1 + hy0 } else { hx0 + hy1 }] as usize;
+    let h2 = perm[hx1 + hy1] as usize;
+
+    // Select gradients for the four corners.
+    let gi0 = GRAD2[h0 & 7];
+    let gi1 = GRAD2[h1 & 7];
+    let gi2 = GRAD2[h2 & 7];
+
+    // pack values into SIMD vectors.
+    let x = Simd::from_array([xy0.x, xy1.x, xy2.x, 0.0]);
+    let y = Simd::from_array([xy0.y, xy1.y, xy2.y, 0.0]);
+    let gx = Simd::from_array([gi0.x, gi1.x, gi2.x, 0.0]);
+    let gy = Simd::from_array([gi0.y, gi1.y, gi2.y, 0.0]);
+
+    // compute t = 0.5 - x^2 - y^2 (attenuation factor before raising to power)
+    let t = Simd::from_array([0.5; 4]) - (x * x) - (y * y);
+
+    // Clamp negative values to zero (contributions outside influence radius)
+    let t_clamped = t.simd_max(Simd::splat(0.0));
+
+    // Compute dot products: g · r
+    let dot = gx * x + gy * y;
+
+    // Compute t^2, t^3, t^4
+    let t2 = t_clamped * t_clamped;
+    let t3 = t2 * t_clamped;
+    let t4 = t2 * t2;
+
+    // Noise value: sum of (t^4 * dot)
+    let value = (t4 * dot).reduce_sum() * 70.0;
+
+    // Derivative computation:
+    // dn/dx = sum of [t^4 * gx - 8 * x * t^3 * dot]
+    // dn/dy = sum of [t^4 * gy - 8 * y * t^3 * dot]
+    let temp = t3 * dot * Simd::splat(8.0);
+
+    let dx_contrib = t4 * gx - temp * x;
+    let dy_contrib = t4 * gy - temp * y;
+
+    let dx = dx_contrib.reduce_sum() * 70.0;
+    let dy = dy_contrib.reduce_sum() * 70.0;
+
+    [value, dx, dy]
+}
+
 /// 3-Dimensional Simplex Noise
 /// If the input X, Y, and Z are whole numbers, the output will be 0.0.
 #[inline]

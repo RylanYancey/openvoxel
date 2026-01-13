@@ -12,3 +12,7 @@ pub struct SyncRegistries {
 pub struct PlayerConnected {
     pub session: Session,
 }
+
+/// The player submitted a message through the chat box.
+#[derive(Message, Clone)]
+pub struct ChatBoxSubmit(pub String);

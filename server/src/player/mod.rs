@@ -1,9 +1,6 @@
 use bevy::{ecs::entity::EntityHashMap, prelude::*};
 use data::registry::Registry;
-use protocol::{
-    session::Session,
-    types::{EntityUpdate, PlayerInput},
-};
+use protocol::{packet::Version, session::Session, types::EntityUpdate};
 
 use crate::{
     events::{PlayerJoined, PlayerLeft},
@@ -12,6 +9,23 @@ use crate::{
 use table::Players;
 
 pub mod table;
+pub mod update;
+
+pub struct ServerPlayerPlugin;
+
+impl Plugin for ServerPlayerPlugin {
+    #[rustfmt::skip]
+    fn build(&self, app: &mut App) {
+        app
+            .init_resource::<table::Players>()
+            .add_systems(Update, (
+                update::apply_input_updates,
+                spawn_player_on_join,
+                despawn_player_on_leave,
+            ))
+        ;
+    }
+}
 
 #[derive(Component, Copy, Clone)]
 pub struct Player {
@@ -21,7 +35,7 @@ pub struct Player {
     /// The Version of the players input state.
     /// Used to determine if updates from the client
     /// should be discarded or applied.
-    pub version: u32,
+    pub version: Version,
 }
 
 pub fn spawn_player_on_join(
@@ -38,7 +52,7 @@ pub fn spawn_player_on_join(
                 //
                 Player {
                     session: ev.session,
-                    version: 0,
+                    version: Version::ZERO,
                 },
             ))
             .id();
@@ -60,30 +74,4 @@ pub fn despawn_player_on_leave(
             commands.entity(entry.entity).despawn();
         }
     }
-}
-
-pub fn apply_player_input(// channels: Res<Registry<Channel>>,
-    // players: Res<Players>,
-    // mut q: Query<(&mut Transform, &mut Player)>,
-) {
-    // let channel = channels
-    //     .get_by_name("player-input")
-    //     .expect("player-input channel not added to channels registry.");
-
-    // for (session, payload) in channel.decode::<EntityUpdate<PlayerInput>>() {
-    //     match payload {
-    //         Err(e) => panic!("[S382] Error while reading player input payload: '{e:?}'"),
-    //         Ok(payload) => {
-    //             if let Some(entity) = players.entity(session) {
-    //                 if let Ok((mut transform, mut player)) = q.get_mut(entity)
-    //                     && player.version < payload.version
-    //                 {
-    //                     player.version = payload.version;
-    //                     transform.translation = payload.position;
-    //                     transform.rotation = payload.look_rot;
-    //                 }
-    //             }
-    //         }
-    //     }
-    // }
 }

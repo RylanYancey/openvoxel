@@ -642,6 +642,12 @@ impl ChunkId {
     }
 }
 
+impl std::fmt::Display for ChunkId {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.as_ivec2().fmt(f)
+    }
+}
+
 impl From<IVec2> for ChunkId {
     fn from(value: IVec2) -> Self {
         Self::new(value)

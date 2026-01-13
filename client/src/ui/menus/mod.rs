@@ -3,11 +3,14 @@ use bevy::prelude::*;
 use crate::ui::UiVars;
 
 pub mod connecting;
+pub mod pause;
 pub mod server_select;
 pub mod starting;
 pub mod title;
 pub mod world_select;
 
+/// Denotes the currently displayed menu, either on the
+/// title menu, a submenu, or in the pause menu.
 #[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, States, Default)]
 pub enum Menu {
     /// Main game load sequence.
@@ -16,6 +19,9 @@ pub enum Menu {
 
     ///
     Title,
+
+    /// In-game pause menu.
+    Pause,
 
     /// Select world to join. (Singleplayer)
     WorldSelect,
@@ -28,6 +34,9 @@ pub enum Menu {
 
     /// Settings menu
     Options,
+
+    /// No menu currently displayed.
+    None,
 }
 
 #[derive(Component)]

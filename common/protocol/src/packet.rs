@@ -1,8 +1,5 @@
-use std::marker::PhantomData;
-
 use crate::{exit::ExitCode, session::Session};
-use bevy::prelude::*;
-use bytemuck::Pod;
+use bytemuck::{Pod, Zeroable};
 use bytes::Bytes;
 use serde::Serialize;
 
@@ -14,12 +11,8 @@ pub struct Packet {
 }
 
 impl Packet {
-    pub fn cast<T: Pod>(&self) -> Option<&T> {
-        if self.payload.len() >= std::mem::size_of::<T>() {
-            Some(bytemuck::from_bytes(&self.payload))
-        } else {
-            None
-        }
+    pub fn cast<T: Pod>(&self) -> Option<T> {
+        bytemuck::try_pod_read_unaligned::<T>(&self.payload).ok()
     }
 
     pub fn from_json<T: Serialize>(channel: ChannelId, session: Session, item: &T) -> Self {
@@ -78,4 +71,35 @@ pub enum SentBy {
     Server = 0,
     Client = 1,
     Both = 2,
+}
+
+/// Struct for versioning UDP component updates.
+#[derive(Pod, Zeroable, Copy, Clone, Default, Eq, PartialEq)]
+#[repr(C)]
+pub struct Version(u32);
+
+impl Version {
+    pub const ZERO: Self = Self(0);
+
+    pub const fn new() -> Self {
+        Self::ZERO
+    }
+
+    pub fn next(&mut self) -> Self {
+        self.0 = self.0.wrapping_add(1);
+        Self(self.0)
+    }
+
+    /// If other is more recent than self, self is updated.
+    /// Returns "true" if an update occurred.
+    pub fn update(&mut self, other: Self) -> bool {
+        // wrapping around is handled by checking if self is very large and other is very small.
+        // It would take 36 hours for this to occur, if at 30 updates per second.
+        if other.0 > self.0 || self.0 > 32768 && other.0 < 256 {
+            self.0 = other.0;
+            true
+        } else {
+            false
+        }
+    }
 }

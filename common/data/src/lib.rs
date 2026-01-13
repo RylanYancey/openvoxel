@@ -17,6 +17,7 @@ pub mod sequence;
 pub mod states;
 pub mod table;
 pub mod tags;
+pub mod text;
 pub mod util;
 
 pub struct OpenvoxelDataPlugin;

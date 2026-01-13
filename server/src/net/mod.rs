@@ -11,7 +11,7 @@ use protocol::{
     bytes::Bytes,
     codec::{TcpDecoder, TcpEncoder, UdpDecoder, UdpEncoder},
     exit::ExitCode,
-    packet::{ChannelId, Packet, Protocol},
+    packet::{ChannelId, Packet, Protocol, SentBy},
     session::Session,
     types::{AuthAccepted, RegistrySyncPacket},
 };
@@ -25,9 +25,39 @@ pub mod channel;
 pub use connection::{Connection, Pending};
 
 use crate::{
+    AppExt,
     events::{PlayerJoined, PlayerLeft},
     net::channel::Channel,
 };
+
+pub struct ServerNetPlugin;
+
+impl Plugin for ServerNetPlugin {
+    #[rustfmt::skip]
+    fn build(&self, app: &mut App) {
+        app
+            .init_resource::<InitialMessageContent>()
+            .init_resource::<Server>()
+            .init_sync_registry::<Channel>("channels")
+            .add_channel("player-input", SentBy::Client)
+            .add_channel("chunk-data", SentBy::Server)
+            .add_systems(PreStartup, (
+                bind_server_to_localhost,
+            ))
+            .add_systems(PreUpdate, (
+                process_server_events,
+                recv_incoming_messages,
+            ))
+            .add_systems(Update, (
+                send_sync_packet,
+            ))
+            .add_systems(PostUpdate, (
+                clear_channels,
+                flush_server_buffers,
+            ))
+        ;
+    }
+}
 
 #[derive(Resource)]
 pub struct Server {
@@ -262,7 +292,7 @@ pub enum ServerEvent {
     Exited(Session, ExitCode),
 }
 
-pub fn process_server_events(
+fn process_server_events(
     mut server: ResMut<Server>,
     mut events: Local<Vec<ServerEvent>>,
     mut joined_evs: MessageWriter<PlayerJoined>,
@@ -294,12 +324,25 @@ pub fn process_server_events(
     }
 }
 
-pub fn flush_server_buffers(mut server: ResMut<Server>) {
+/// Binds Server to LocalHost on startup.
+fn bind_server_to_localhost(mut server: ResMut<Server>) {
+    server
+        .bind("127.0.0.1:51423".parse::<SocketAddr>().unwrap())
+        .unwrap();
+}
+
+fn flush_server_buffers(mut server: ResMut<Server>) {
     server.flush();
 }
 
+fn clear_channels(mut channels: ResMut<Registry<Channel>>) {
+    for channel in channels.iter_mut() {
+        channel.incoming.clear();
+    }
+}
+
 #[rustfmt::skip]
-pub fn recv_incoming_messages(
+fn recv_incoming_messages(
     mut server: ResMut<Server>,
     mut channels: ResMut<Registry<Channel>>,
 ) {
@@ -310,7 +353,7 @@ pub fn recv_incoming_messages(
     }
 }
 
-pub fn send_sync_packet(
+fn send_sync_packet(
     mut evs: MessageReader<PlayerJoined>,
     mut content: ResMut<InitialMessageContent>,
     mut server: ResMut<Server>,

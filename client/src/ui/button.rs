@@ -1,3 +1,5 @@
+use std::borrow::Cow;
+
 use crate::ui::UiVars;
 
 use super::{menus::Menu, util::Last};
@@ -20,12 +22,12 @@ pub enum ButtonAction {
     #[default]
     None,
 
+    /// Activate the action with this name.
+    Trigger(Cow<'static, str>),
+
     /// Request to transition to another menu.
     /// Handled in the handle_menu_button_ix system.
     Transition(Menu),
-
-    /// Set to whatever and listen for click events.
-    Other(String),
 
     /// Exit was requested.
     /// Handled in the handle_menu_button_ix system.

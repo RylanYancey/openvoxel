@@ -53,45 +53,19 @@ fn main() -> AppExit {
             TerminalCtrlCHandlerPlugin,
             AssetPlugin::default(),
             StatesPlugin,
+            net::ServerNetPlugin,
             world::ServerWorldPlugin,
+            player::ServerPlayerPlugin,
             #[cfg(feature = "tui")]
             tui::TuiPlugin,
         ))
         // initialize resources
-        .init_resource::<Server>()
-        .init_resource::<InitialMessageContent>()
-        .init_resource::<player::table::Players>()
-        .init_sync_registry::<Channel>("channels")
         .insert_resource(World::new(256, -128))
         // initialize messages
         .add_message::<PlayerJoined>()
         .add_message::<PlayerLeft>()
         .add_message::<SubscChanged>()
         .add_message::<RegionLoaded>()
-        // add channels
-        .add_channel("player-input", SentBy::Client)
-        .add_channel("chunk-data", SentBy::Server)
-        // add startup systems
-        .add_systems(Startup, (
-            startup::bind_server_to_localhost,
-            // startup::build_world,
-        ))
-        // add pre-update systems
-        .add_systems(PreUpdate, (
-            net::process_server_events,
-            net::recv_incoming_messages
-        ))
-        // add update systems
-        .add_systems(Update, (
-            // send_chunk_data_to_player_on_join,
-            player::apply_player_input,
-            player::spawn_player_on_join,
-            player::despawn_player_on_leave,
-        ))
-        // add post-update systems
-        .add_systems(PostUpdate, (
-            net::flush_server_buffers,
-        ))
         .run()
 }
 

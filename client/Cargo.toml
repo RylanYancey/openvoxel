@@ -22,6 +22,7 @@ crossbeam-channel.workspace = true
 serde_json.workspace = true
 bytemuck.workspace = true
 portable-atomic.workspace = true
+ron.workspace = true
 
 # local imports
 image = "0.25.9"
@@ -47,7 +48,6 @@ features = [
     "bevy_state",
     "bevy_text",
     "bevy_ui",
-    "bevy_ui_picking_backend",
     "default_font",
     "bevy_ui_render",
     "bevy_window",

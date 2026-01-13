@@ -1,7 +1,7 @@
 use std::marker::PhantomData;
 
 use bevy::{
-    asset::{AssetLoader, RenderAssetUsages, ron},
+    asset::{AssetLoader, RenderAssetUsages},
     image::Image,
     prelude::*,
     render::{
@@ -412,6 +412,7 @@ pub enum TextureError {
     Ron(#[from] ron::de::SpannedError),
 }
 
+#[derive(TypePath)]
 pub struct TextureLoader<M: TextureMeta> {
     next_id: AtomicUsize,
     _marker: PhantomData<M>,

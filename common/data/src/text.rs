@@ -5,7 +5,7 @@ use std::collections::VecDeque;
 use bevy::{
     input::{
         ButtonState,
-        keyboard::{Key, KeyboardInput},
+        keyboard::{Key, KeyCode, KeyboardInput},
     },
     prelude::*,
 };

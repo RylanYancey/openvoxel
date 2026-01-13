@@ -1,11 +1,11 @@
 use std::{fs, io, path::PathBuf};
 
 use bevy::{
-    asset::ron::{self, de::SpannedError},
     prelude::*,
     tasks::{IoTaskPool, Task, futures_lite},
 };
 use fxhash::FxHashSet;
+use ron::de::SpannedError;
 use serde::de::DeserializeOwned;
 
 use crate::fs::path::{FileExt, get_relative_path_without_ext_as_string, iter_files_in_dir};

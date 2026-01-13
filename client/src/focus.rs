@@ -2,7 +2,7 @@ use std::marker::PhantomData;
 
 use bevy::{
     ecs::{
-        component::Tick,
+        change_detection::Tick,
         system::{SystemChangeTick, SystemParam},
     },
     prelude::*,
